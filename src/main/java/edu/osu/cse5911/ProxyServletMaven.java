@@ -3,7 +3,10 @@ package edu.osu.cse5911;
 import java.io.*;
 import java.net.*;
 
+import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -21,16 +24,23 @@ import org.w3c.dom.Node;
 /**
  * Servlet implementation class ProxyServlet
  */
+@WebServlet("/ProxyServletMaven")
 public class ProxyServletMaven extends HttpServlet {
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
-	final String ep = "http://127.0.0.1:8080";
-	final String page = "bsvc:Page";
-	final String totalPages = "wd:Total_Pages";
-	final String xslt = "config/DW_WD_HR_GetWorkers_All.xsl";
+	private static String ep = "http://127.0.0.1:8080";
+	private static String page = "bsvc:Page";
+	private static String totalPages = "wd:Total_Pages";
+	private static String xslt = "/config/DW_WD_HR_GetWorkers_All.xsl";
 	private static String bucketName = "wso2mystreammykinase";
+	public static String tempdir;
+
+	public void init(ServletConfig config) throws ServletException {
+		super.init(config);
+		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
+	}
 
 	/**
 	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse
@@ -39,8 +49,9 @@ public class ProxyServletMaven extends HttpServlet {
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 
+		
 		String session = request.getSession().getId();
-		String directory = getServletContext().getRealPath("/") + "/" + session;
+		String directory = tempdir + "/" + session;
 		Document doc = parse(request.getInputStream());
 		InputStream remoteResponse = connect(doc);
 		Document remoteDoc = parse(remoteResponse);
@@ -49,9 +60,9 @@ public class ProxyServletMaven extends HttpServlet {
 		writeDocument(remoteDoc, directory, "/" + start);
 		iteration(start, total, directory, doc);
 
-		System.out.println(getServletContext().getRealPath("/"));
+		// System.out.println(getServletContext().getResource("/"));
 		try {
-			Transformation.transform(directory, start, total, getServletContext().getRealPath("/") + "/" + xslt);
+			Transformation.transform(directory, start, total, getServletContext().getResource(xslt).toURI());
 			Concat.concat(directory, start, total);
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session);
 			Transformation.deleteDir(new File(directory));
@@ -63,7 +74,7 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	void iteration(int start, int total, String session, Document is) throws IOException {
-		for (int i = start; i <= total; i++) {
+		for (int i = start + 1; i <= total; i++) {
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
 			writeDocument(response, session, Integer.toString(i));

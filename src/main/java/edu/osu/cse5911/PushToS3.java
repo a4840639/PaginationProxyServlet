@@ -14,7 +14,6 @@ public class PushToS3 {
 	public static void push(String uploadFileName, String bucketName, String keyName) throws IOException {
         AmazonS3 s3client = AmazonS3Client.builder().withRegion("us-east-1").withForceGlobalBucketAccessEnabled(true).build();
         s3client.getBucketLocation(bucketName);
-        System.out.println(s3client.getClass().getProtectionDomain().getCodeSource().getLocation());
         try {
             System.out.println("Uploading a new object to S3 from a file");
             File file = new File(uploadFileName);

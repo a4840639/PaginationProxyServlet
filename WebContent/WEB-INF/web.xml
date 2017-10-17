@@ -5,8 +5,4 @@
 		<servlet-name>ProxyServletMaven</servlet-name>
 		<servlet-class>edu.osu.cse5911.ProxyServletMaven</servlet-class>
 	</servlet>
-	<servlet-mapping>
-		<servlet-name>ProxyServletMaven</servlet-name>
-		<url-pattern>/ProxyServletMaven</url-pattern>
-	</servlet-mapping>
 </web-app>

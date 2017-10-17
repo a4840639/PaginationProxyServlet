@@ -5,10 +5,11 @@ import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 
 public class Transformation {
-	public static void transform(String directory, int start, int total, String xsltPath)
+	public static void transform(String directory, int start, int total, URI xsltURI)
 			throws IOException, URISyntaxException, TransformerException {
 		System.out.println("Start Transforming");
 		File dirTransformed = new File(directory + "/transformed");
@@ -21,12 +22,12 @@ public class Transformation {
 		while (count <= total) {
 			File rootFile = new File(directory + "/" + count);
 			TransformerFactory factory = TransformerFactory.newInstance();
-			Source xslt = new StreamSource(new File(xsltPath));
+			Source xslt = new StreamSource(new File(xsltURI));
 			Transformer transformer = factory.newTransformer(xslt);
 			Source text = new StreamSource(rootFile);
 			String filePath = "" + dirTransformed + "/" + count;
-			System.out.println("rootFile is" + rootFile);
-			System.out.println("filePath is" + filePath);
+//			System.out.println("rootFile is" + rootFile);
+//			System.out.println("filePath is" + filePath);
 
 			transformer.transform(text, new StreamResult(new File(filePath)));
 			count++;			

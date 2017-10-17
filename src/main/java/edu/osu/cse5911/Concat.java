@@ -14,7 +14,7 @@ public class Concat {
 
 		String outputPath = "" + dirOutput + "/mergedFile";
 		OutputStream out = new FileOutputStream(new File(outputPath));
-		byte[] buf = new byte[40];
+		byte[] buf = new byte[1024];
 		
 		for (int i = start; i <= total; i++) {
 			File rootFile = new File(directory + "/transformed/" + i);
@@ -26,7 +26,7 @@ public class Concat {
 	            out.flush();
 	        }
 			// Skip ahead in the input to the opening document element
-			System.out.println("RootFile " + rootFile);
+//			System.out.println("RootFile " + rootFile);
 		}
 
 		System.out.println("Done Concatenating.");
