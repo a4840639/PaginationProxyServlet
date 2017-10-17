@@ -9,6 +9,8 @@ buildNumber.properties
 .mvn/timing.properties
 
 src/main/webapp/config/*
+# exception to the rule
+!src/main/webapp/config/
 
 # Avoid ignoring Maven wrapper jar file (.jar files are usually ignored)
 !/.mvn/wrapper/maven-wrapper.jar
