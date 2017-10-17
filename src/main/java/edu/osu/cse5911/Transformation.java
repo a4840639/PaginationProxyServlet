@@ -35,7 +35,7 @@ public class Transformation {
 		System.out.println("Done Transforming");
 	}
 
-	private static boolean deleteDir(File dir) {
+	static boolean deleteDir(File dir) {
 		if (dir.isDirectory()) {
 			String[] children = dir.list();
 			for (int i = 0; i < children.length; i++) {

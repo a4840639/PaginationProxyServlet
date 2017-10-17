@@ -4,7 +4,6 @@ import java.io.*;
 import java.net.*;
 
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -22,7 +21,6 @@ import org.w3c.dom.Node;
 /**
  * Servlet implementation class ProxyServlet
  */
-@WebServlet("/ProxyServlet")
 public class ProxyServletMaven extends HttpServlet {
 	/**
 	 * 
@@ -31,7 +29,7 @@ public class ProxyServletMaven extends HttpServlet {
 	final String ep = "http://127.0.0.1:8080";
 	final String page = "bsvc:Page";
 	final String totalPages = "wd:Total_Pages";
-	final String xslt = "DW_WD_HR_GetWorkers_All.xsl";
+	final String xslt = "config/DW_WD_HR_GetWorkers_All.xsl";
 	private static String bucketName = "wso2mystreammykinase";
 
 	/**
@@ -55,7 +53,8 @@ public class ProxyServletMaven extends HttpServlet {
 		try {
 			Transformation.transform(directory, start, total, getServletContext().getRealPath("/") + "/" + xslt);
 			Concat.concat(directory, start, total);
-			PushToS3.push(directory + "/mergedFile", bucketName, session);
+			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session);
+			Transformation.deleteDir(new File(directory));
 		} catch (Throwable e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
