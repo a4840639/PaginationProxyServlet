@@ -21,24 +21,32 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 //import org.w3c.dom.NodeList;
 
+
 /**
  * Servlet implementation class ProxyServlet
  */
-@WebServlet("/ProxyServletMaven")
+//@WebServlet("/ProxyServletMaven")
 public class ProxyServletMaven extends HttpServlet {
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
-	private static String ep = "http://127.0.0.1:8080";
-	private static String page = "bsvc:Page";
-	private static String totalPages = "wd:Total_Pages";
-	private static String xslt = "/config/DW_WD_HR_GetWorkers_All.xsl";
-	private static String bucketName = "wso2mystreammykinase";
-	public static String tempdir;
-
-	public void init(ServletConfig config) throws ServletException {
-		super.init(config);
+	
+	private static String endpoint;
+	private static String page;
+	private static String totalPages;
+	private static String xslt;
+	private static String bucketName;
+	private static String tempdir;	
+	
+	@Override
+	public void init() throws ServletException {
+		endpoint = getInitParameter("endpoint"); 
+		System.out.println(endpoint);
+		page = getInitParameter("page"); 
+		totalPages = getInitParameter("totalPages"); 
+		xslt = getInitParameter("xslt"); 
+		bucketName = getInitParameter("bucketName"); 
 		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
 	}
 
@@ -162,10 +170,10 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	InputStream connect(Document doc) throws IOException {
-		URL url = new URL(ep);
+		URL url = new URL(endpoint);
 		URLConnection con = url.openConnection();
 
-		con.setRequestProperty("SOAPAction", ep);
+		con.setRequestProperty("SOAPAction", endpoint);
 		con.setDoOutput(true);
 
 		sendDocument(doc, con.getOutputStream());
