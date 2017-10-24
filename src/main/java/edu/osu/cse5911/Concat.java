@@ -6,31 +6,39 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import org.apache.logging.log4j.*;
+
 public class Concat {
-	public static void concat(String directory, int start, int total) throws Throwable {
+	public static void concat(String directory, int start, int total, Logger logger) {
 		File dirOutput = new File(directory);
 		// deleteDir(dirOutput);
 		dirOutput.mkdirs();
 
 		String outputPath = "" + dirOutput + "/mergedFile";
-		OutputStream out = new FileOutputStream(new File(outputPath));
-		byte[] buf = new byte[1024];
-		
-		for (int i = start; i <= total; i++) {
-			File rootFile = new File(directory + "/transformed/" + i);
-			@SuppressWarnings("resource")
-			InputStream in = new FileInputStream(rootFile);
-			int b = 0;
-	        while ( (b = in.read(buf)) >= 0) {
-	            out.write(buf, 0, b);
-	            out.flush();
-	        }
-			// Skip ahead in the input to the opening document element
-//			System.out.println("RootFile " + rootFile);
+		try {
+			OutputStream out = new FileOutputStream(new File(outputPath));
+			byte[] buf = new byte[1024];
+
+			for (int i = start; i <= total; i++) {
+				File rootFile = new File(directory + "/transformed/" + i);
+				@SuppressWarnings("resource")
+				InputStream in = new FileInputStream(rootFile);
+				int b = 0;
+				while ((b = in.read(buf)) >= 0) {
+					out.write(buf, 0, b);
+					out.flush();
+				}
+				// Skip ahead in the input to the opening document element
+				// System.out.println("RootFile " + rootFile);
+			}
+			out.close();
+
+		} catch (Exception e) {
+			logger.error("Error during concatination: ", e);
+			throw new RuntimeException(e);
 		}
 
-		System.out.println("Done Concatenating.");
-		System.out.println("Merged File: " + outputPath);
-		out.close();
+		logger.info("Done Concatenating.");
+		logger.info("Merged File: " + outputPath);
 	}
 }

@@ -4,21 +4,21 @@ import javax.xml.transform.*;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
+
+import org.apache.logging.log4j.*;
 
 public class Transformation {
-	public static void transform(String directory, int start, int total, URI xsltURI)
-			throws IOException, URISyntaxException, TransformerException {
-		System.out.println("Start Transforming");
+	public static void transform(String directory, int start, int total, URI xsltURI, Logger logger) {
+		logger.info("Start Transforming");
 		File dirTransformed = new File(directory + "/transformed");
 		deleteDir(dirTransformed);
 		dirTransformed.mkdirs();
 //		File dir = new File(directory);
 //		File[] rootFiles = dir.listFiles();
-
+		
 		int count = start;
+		try {
 		while (count <= total) {
 			File rootFile = new File(directory + "/" + count);
 			TransformerFactory factory = TransformerFactory.newInstance();
@@ -32,8 +32,12 @@ public class Transformation {
 			transformer.transform(text, new StreamResult(new File(filePath)));
 			count++;			
 		}
+		} catch (Exception e) {
+			logger.error("Error during transformation: ", e);
+			throw new RuntimeException(e);
+		}
 
-		System.out.println("Done Transforming");
+		logger.info("Done Transforming");
 	}
 
 	static boolean deleteDir(File dir) {

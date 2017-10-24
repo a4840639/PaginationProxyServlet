@@ -3,10 +3,8 @@ package edu.osu.cse5911;
 import java.io.*;
 import java.net.*;
 
-import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -21,33 +19,35 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 //import org.w3c.dom.NodeList;
 
+import org.apache.logging.log4j.*;
 
 /**
  * Servlet implementation class ProxyServlet
  */
-//@WebServlet("/ProxyServletMaven")
 public class ProxyServletMaven extends HttpServlet {
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
-	
+
 	private static String endpoint;
 	private static String page;
 	private static String totalPages;
 	private static String xslt;
 	private static String bucketName;
-	private static String tempdir;	
-	
+	private static String tempdir;
+	private static Logger logger;
+
 	@Override
 	public void init() throws ServletException {
-		endpoint = getInitParameter("endpoint"); 
-		System.out.println(endpoint);
-		page = getInitParameter("page"); 
-		totalPages = getInitParameter("totalPages"); 
-		xslt = getInitParameter("xslt"); 
-		bucketName = getInitParameter("bucketName"); 
+		logger = LogManager.getLogger(ProxyServletMaven.class);
+		endpoint = getInitParameter("endpoint");
+		page = getInitParameter("page");
+		totalPages = getInitParameter("totalPages");
+		xslt = getInitParameter("xslt");
+		bucketName = getInitParameter("bucketName");
 		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
+		logger.info("Done init");
 	}
 
 	/**
@@ -57,7 +57,7 @@ public class ProxyServletMaven extends HttpServlet {
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 
-		
+		logger.info("Enterring application");
 		String session = request.getSession().getId();
 		String directory = tempdir + "/" + session;
 		Document doc = parse(request.getInputStream());
@@ -70,14 +70,14 @@ public class ProxyServletMaven extends HttpServlet {
 
 		// System.out.println(getServletContext().getResource("/"));
 		try {
-			Transformation.transform(directory, start, total, getServletContext().getResource(xslt).toURI());
-			Concat.concat(directory, start, total);
-			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session);
-			Transformation.deleteDir(new File(directory));
-		} catch (Throwable e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			Transformation.transform(directory, start, total, getServletContext().getResource(xslt).toURI(), logger);
+		} catch (Exception e) {
+			logger.error("Wrong xslt URI", e);
+			throw new RuntimeException(e);
 		}
+		Concat.concat(directory, start, total, logger);
+		PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, logger);
+		Transformation.deleteDir(new File(directory));
 
 	}
 
@@ -97,9 +97,8 @@ public class ProxyServletMaven extends HttpServlet {
 			builder = factory.newDocumentBuilder();
 			doc = builder.parse(is);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.err.println("Error parsing stream");
+			logger.error("Error parsing stream", e);
+			throw new RuntimeException(e);
 		}
 		return doc;
 	}
@@ -118,7 +117,8 @@ public class ProxyServletMaven extends HttpServlet {
 			fout.close();
 		} catch (IOException e) {
 			e.printStackTrace();
-			System.err.println("Error writing document");
+			logger.error("Error writing document", e);
+			throw new RuntimeException(e);
 		}
 
 	}
@@ -132,8 +132,8 @@ public class ProxyServletMaven extends HttpServlet {
 			Source input = new DOMSource(doc);
 			transformer.transform(input, output);
 		} catch (Exception e) {
-			e.printStackTrace();
-			System.err.println("Error writing document");
+			logger.error("Error writing document", e);
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -146,9 +146,8 @@ public class ProxyServletMaven extends HttpServlet {
 
 			transformer.transform(input, output);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.err.println("Error sending document");
+			logger.error("Error sending document", e);
+			throw new RuntimeException(e);
 		}
 	}
 
