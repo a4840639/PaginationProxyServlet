@@ -21,7 +21,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-//import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -37,11 +36,7 @@ import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagement;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
-//import com.amazonaws.services.identitymanagement.model.CreateRoleRequest;
-//import com.amazonaws.services.identitymanagement.model.EntityAlreadyExistsException;
 import com.amazonaws.services.identitymanagement.model.GetRoleRequest;
-//import com.amazonaws.services.identitymanagement.model.MalformedPolicyDocumentException;
-//import com.amazonaws.services.identitymanagement.model.PutRolePolicyRequest;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseClient;
 import com.amazonaws.services.kinesisfirehose.model.DeliveryStreamDescription;
 import com.amazonaws.services.kinesisfirehose.model.DescribeDeliveryStreamRequest;
@@ -81,27 +76,6 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	protected static Integer s3DestinationSizeInMBs;
 	protected static Integer s3DestinationIntervalInSeconds;
 
-	// Properties Reader
-	// protected static Properties properties;
-
-	// // IAM Permissions Policy Document with KMS Resources. If KMS key ARN is
-	// // specified, role will be created with KMS resources permission
-	// private static final String
-	// IAM_ROLE_PERMISSIONS_POLICY_WITH_KMS_RESOURCES_DOCUMENT =
-	// "permissionsPolicyDocument.json";
-	// // IAM Permissions Policy Document without KMS Resources.
-	// private static final String
-	// IAM_ROLE_PERMISSIONS_POLICY_WITHOUT_KMS_RESOURCES_DOCUMENT =
-	// "permissionsPolicyWithoutKMSResourcesDocument.json";
-	// // IAM Trust Policy Document
-	// private static final String IAM_ROLE_TRUST_POLICY_DOCUMENT =
-	// "trustPolicyDocument.json";
-	// // IAM Role Policy Name
-	// private static final String FIREHOSE_ROLE_POLICY_NAME =
-	// "Firehose_Delivery_Permissions_Policy";
-
-	// Put Data Source File
-	// private static final String PUT_RECORD_STREAM_SOURCE = "putRecordInput.txt";
 
 	// Default wait interval for data to be delivered in specified destination.
 	protected static final int DEFAULT_WAIT_INTERVAL_FOR_DATA_DELIVERY_SECS = 300;
@@ -150,44 +124,6 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 		iamClient = new AmazonIdentityManagementClient(credentials);
 		iamClient.setRegion(RegionUtils.getRegion(iamRegion));
 	}
-
-	// /**
-	// * Method to create the S3 bucket in specified region.
-	// *
-	// * @throws Exception
-	// */
-	// protected static void createS3Bucket() throws Exception {
-	// if (StringUtils.isNullOrEmpty(s3BucketName.trim())) {
-	// throw new IllegalArgumentException("Bucket name is empty. Please enter a
-	// bucket name "
-	// + "in firehosetos3sample.properties file");
-	// }
-	//
-	// // Create S3 bucket if specified in the properties
-	// if (createS3Bucket) {
-	// s3Client.createBucket(s3BucketName);
-	// LOG.info("Created bucket " + s3BucketName + " in S3 to deliver Firehose
-	// records");
-	// }
-	// }
-
-	// /**
-	// * Method to print all the delivery streams in the customer account.
-	// */
-	// protected static void printDeliveryStreams() {
-	// // list all of my DeliveryStreams
-	// List<String> deliveryStreamNames = listDeliveryStreams();
-	// LOG.info("Printing my list of DeliveryStreams : ");
-	// if (deliveryStreamNames.isEmpty()) {
-	// LOG.info("There are no DeliveryStreams for account: " + accountId);
-	// } else {
-	// LOG.info("List of my DeliveryStreams: ");
-	// }
-	//
-	// for (int i = 0; i < deliveryStreamNames.size(); i++) {
-	// LOG.info(deliveryStreamNames.get(i));
-	// }
-	// }
 
 	/**
 	 * Method to list all the delivery streams in the customer account.
@@ -270,37 +206,16 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 		}
 	}
 
-	// /**
-	// * Method to create the IAM role.
-	// *
-	// * @param s3Prefix the s3Prefix to be specified in role policy (only when KMS
-	// key ARN is specified)
-	// * @return the role ARN
-	// * @throws InterruptedException
-	// */
+	/**
+	* Method to create the IAM role.
+	*
+	* @param s3Prefix the s3Prefix to be specified in role policy (only when KMS
+	key ARN is specified)
+	* @return the role ARN
+	* @throws InterruptedException
+	*/
 	protected static String createIamRole(String s3Prefix) throws InterruptedException {
-		// try {
-		// //set trust policy for the role
-		// iamClient.createRole(new CreateRoleRequest()
-		// .withRoleName(iamRoleName)
-		// .withAssumeRolePolicyDocument(getTrustPolicy()));
-		// } catch (EntityAlreadyExistsException e) {
-		// LOG.info("IAM role with name " + iamRoleName + " already exists");
-		// } catch (MalformedPolicyDocumentException policyDocumentException){
-		// LOG.error(String.format("Please check the trust policy document for
-		// malformation: %s",
-		// IAM_ROLE_TRUST_POLICY_DOCUMENT));
-		// throw policyDocumentException;
-		// }
-		//
-		// // Update the role policy with permissions so that principal can access the
-		// resources
-		// // with necessary conditions
-		// putRolePolicy(s3Prefix);
-		//
 		String roleARN = iamClient.getRole(new GetRoleRequest().withRoleName(iamRoleName)).getRole().getArn();
-		// // Sleep for 5 seconds because IAM role creation takes some time to propagate
-		// Thread.sleep(5000);
 		return roleARN;
 	}
 
@@ -394,93 +309,6 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 		// single put record batch request is 500
 		return firehoseClient.putRecordBatch(putRecordBatchRequest);
 	}
-
-	// /**
-	// * Method to put the role policy with permissions document. Permission
-	// document would change
-	// * based on KMS Key ARN specified in properties file. If KMS Key ARN is
-	// specified, permissions
-	// * document will contain KMS resource.
-	// *
-	// * @param s3Prefix the s3Prefix which will be included in KMS Condition (only
-	// if KMS Key is provided)
-	// */
-	// protected static void putRolePolicy(String s3Prefix) {
-	// try {
-	// // set permissions policy for the role
-	// String permissionsPolicyDocument =
-	// containsKMSKeyARN() ? getPermissionsPolicyWithKMSResources(s3Prefix)
-	// : getPermissionsPolicyWithoutKMSResources();
-	// iamClient.putRolePolicy(new PutRolePolicyRequest()
-	// .withRoleName(iamRoleName)
-	// .withPolicyName(FIREHOSE_ROLE_POLICY_NAME)
-	// .withPolicyDocument(permissionsPolicyDocument));
-	// } catch (MalformedPolicyDocumentException policyDocumentException){
-	// LOG.error(String.format("Please check the permissions policy document for
-	// malformation: %s",
-	// containsKMSKeyARN() ? IAM_ROLE_PERMISSIONS_POLICY_WITH_KMS_RESOURCES_DOCUMENT
-	// : IAM_ROLE_PERMISSIONS_POLICY_WITHOUT_KMS_RESOURCES_DOCUMENT));
-	// throw policyDocumentException;
-	// }
-	// }
-
-	// /**
-	// * Method to return the trust policy document to create a role.
-	// *
-	// * @return the trust policy document
-	// */
-	// private static String getTrustPolicy() {
-	// return readResource(IAM_ROLE_TRUST_POLICY_DOCUMENT)
-	// .replace("{{CUSTOMER_ACCOUNT_ID}}", accountId);
-	// }
-	//
-	// /**
-	// * Method to return the permissions policy document with KMS resource.
-	// *
-	// * @param s3Prefix the s3Prefix to be specified in KMS Condition
-	// * @return the permissions policy document
-	// */
-	// private static String getPermissionsPolicyWithKMSResources(String s3Prefix) {
-	// return readResource(IAM_ROLE_PERMISSIONS_POLICY_WITH_KMS_RESOURCES_DOCUMENT)
-	// .replace("{{S3_BUCKET_NAME}}", s3BucketName)
-	// .replace("{{KMS_KEY_ARN}}", s3DestinationAWSKMSKeyId)
-	// .replace("{{S3_REGION}}", s3RegionName)
-	// .replace("{{S3_PREFIX}}", s3Prefix);
-	// }
-	//
-	// /**
-	// * Method to return the permissions policy document without KMS resource.
-	// *
-	// * @return the permissions policy document
-	// */
-	// private static String getPermissionsPolicyWithoutKMSResources() {
-	// return
-	// readResource(IAM_ROLE_PERMISSIONS_POLICY_WITHOUT_KMS_RESOURCES_DOCUMENT)
-	// .replace("{{S3_BUCKET_NAME}}", s3BucketName);
-	// }
-
-	// /**
-	// * Method to read the resource for the given filename.
-	// *
-	// * @param name the file name
-	// * @return the input stream as string
-	// */
-	// private static String readResource(String name) {
-	// try {
-	// return IOUtils.toString(PushToFirehose.class.getResourceAsStream(name));
-	// } catch (IOException e) {
-	// throw new RuntimeException("Failed to read document resource: " + name, e);
-	// }
-	// }
-
-	// /**
-	// * Returns true if the KMS Key ARN is specified in properties file.
-	// *
-	// * @return true, if KMS Key is specified
-	// */
-	// private static boolean containsKMSKeyARN() {
-	// return !StringUtils.isNullOrEmpty(s3DestinationAWSKMSKeyId);
-	// }
 
 	/**
 	 * Method to create the record object for given data.
