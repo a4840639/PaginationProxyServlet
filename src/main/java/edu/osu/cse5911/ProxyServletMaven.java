@@ -65,19 +65,25 @@ public class ProxyServletMaven extends HttpServlet {
 		Document remoteDoc = parse(remoteResponse);
 		int start = Integer.parseInt(getNode(page, doc).getTextContent());
 		int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
-		writeDocument(remoteDoc, directory, "/" + start);
-		iteration(start, total, directory, doc);
+//		writeDocument(remoteDoc, directory, "/" + start);
+		try {
+//			PushToFirehose.push(remoteResponse, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		iteration(start, total, session, doc);
 
 		// System.out.println(getServletContext().getResource("/"));
-		try {
-			Transformation.transform(directory, start, total, getServletContext().getResource(xslt).toURI(), logger);
-		} catch (Exception e) {
-			logger.error("Wrong xslt URI", e);
-			throw new RuntimeException(e);
-		}
-		Concat.concat(directory, start, total, logger);
-		PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, logger);
-		Transformation.deleteDir(new File(directory));
+//		try {
+//			Transformation.transform(directory, start, total, getServletContext().getResource(xslt).toURI(), logger);
+//		} catch (Exception e) {
+//			logger.error("Wrong xslt URI", e);
+//			throw new RuntimeException(e);
+//		}
+//		Concat.concat(directory, start, total, logger);
+//		PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, logger);
+//		Transformation.deleteDir(new File(directory));
 
 	}
 
@@ -85,7 +91,12 @@ public class ProxyServletMaven extends HttpServlet {
 		for (int i = start + 1; i <= total; i++) {
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
-			writeDocument(response, session, Integer.toString(i));
+//			writeDocument(response, session, Integer.toString(i));
+			try {
+				PushToFirehose.push(response, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+			} catch (Exception e) {
+				logger.error("Firehose error", e);
+			}
 		}
 	}
 
