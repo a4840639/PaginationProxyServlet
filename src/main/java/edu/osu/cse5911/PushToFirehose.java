@@ -1,6 +1,7 @@
 package edu.osu.cse5911;
 
-import java.io.InputStream;
+import java.io.IOException;
+
 /*
  * Copyright 2012-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
@@ -17,17 +18,18 @@ import java.io.InputStream;
  */
 import java.util.List;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.*;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
 import com.amazonaws.services.kinesisfirehose.model.BufferingHints;
 import com.amazonaws.services.kinesisfirehose.model.CompressionFormat;
 import com.amazonaws.services.kinesisfirehose.model.CreateDeliveryStreamRequest;
+import com.amazonaws.services.kinesisfirehose.model.DeleteDeliveryStreamRequest;
 import com.amazonaws.services.kinesisfirehose.model.EncryptionConfiguration;
+import com.amazonaws.services.kinesisfirehose.model.ExtendedS3DestinationConfiguration;
 import com.amazonaws.services.kinesisfirehose.model.NoEncryptionConfig;
-import com.amazonaws.services.kinesisfirehose.model.S3DestinationConfiguration;
 
 
 /**
@@ -67,9 +69,9 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 	// private static final String CONFIG_FILE = "firehosetos3sample.properties";
 
 	// Logger
-	private static final Log LOG = LogFactory.getLog(PushToFirehose.class);
+	private static final Logger LOG = LogManager.getLogger(AbstractAmazonKinesisFirehoseDelivery.class);
 
-	public static void push(InputStream is, String in_s3RegionName, String in_s3BucketName, String in_s3ObjectPrefix, String in_firehoseRegion, String in_iamRoleName, String in_iamRegion ) throws Exception {
+	public static void push(String content, String in_s3RegionName, String in_s3BucketName, String in_s3ObjectPrefix, String in_firehoseRegion, String in_iamRoleName, String in_iamRegion) {
 		s3RegionName = in_s3RegionName;
 		s3BucketName = in_s3BucketName;
 		s3BucketARN = getBucketARN(s3BucketName);
@@ -83,7 +85,12 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 		iamRoleName = in_iamRoleName;
 		iamRegion = in_iamRegion;
 		
-		initClients();
+		try {
+			initClients();
+		} catch (Exception e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
 
 		try {
 			// Create the DeliveryStream
@@ -91,7 +98,8 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 
 			// Put records into deliveryStream
 			LOG.info("Putting records in deliveryStream : " + deliveryStreamName);
-			putRecordBatchIntoDeliveryStream(is);
+			putRecordIntoDeliveryStream(content);
+//			deleteDeliveryStream(in_s3ObjectPrefix);
 
 		} catch (AmazonServiceException ase) {
 			LOG.error("Caught Amazon Service Exception");
@@ -100,6 +108,12 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 		} catch (AmazonClientException ace) {
 			LOG.error("Caught Amazon Client Exception");
 			LOG.error("Exception Message " + ace.getMessage(), ace);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 	}
 
@@ -126,7 +140,7 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 			CreateDeliveryStreamRequest createDeliveryStreamRequest = new CreateDeliveryStreamRequest();
 			createDeliveryStreamRequest.setDeliveryStreamName(deliveryStreamName);
 
-			S3DestinationConfiguration s3DestinationConfiguration = new S3DestinationConfiguration();
+			ExtendedS3DestinationConfiguration s3DestinationConfiguration = new ExtendedS3DestinationConfiguration();
 			s3DestinationConfiguration.setBucketARN(s3BucketARN);
 			s3DestinationConfiguration.setPrefix(s3ObjectPrefix);
 			// Could also specify GZIP or ZIP
@@ -154,7 +168,7 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 			String iamRoleArn = createIamRole(s3ObjectPrefix);
 			s3DestinationConfiguration.setRoleARN(iamRoleArn);
 
-			createDeliveryStreamRequest.setS3DestinationConfiguration(s3DestinationConfiguration);
+			createDeliveryStreamRequest.setExtendedS3DestinationConfiguration(s3DestinationConfiguration);
 
 			firehoseClient.createDeliveryStream(createDeliveryStreamRequest);
 

@@ -3,7 +3,6 @@ package edu.osu.cse5911;
 import java.io.*;
 import java.net.*;
 
-import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -35,7 +34,6 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String totalPages;
 	private static String xslt;
 	private static String bucketName;
-	private static String tempdir;
 	private static Logger logger;
 
 	@Override
@@ -46,7 +44,6 @@ public class ProxyServletMaven extends HttpServlet {
 		totalPages = getInitParameter("totalPages");
 		xslt = getInitParameter("xslt");
 		bucketName = getInitParameter("bucketName");
-		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
 		logger.info("Done init");
 	}
 
@@ -59,19 +56,26 @@ public class ProxyServletMaven extends HttpServlet {
 
 		logger.info("Enterring application");
 		String session = request.getSession().getId();
-		String directory = tempdir + "/" + session;
+//		String directory = tempdir + "/" + session;
 		Document doc = parse(request.getInputStream());
 		InputStream remoteResponse = connect(doc);
 		Document remoteDoc = parse(remoteResponse);
 		int start = Integer.parseInt(getNode(page, doc).getTextContent());
 		int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
-//		writeDocument(remoteDoc, directory, "/" + start);
+		String content;
 		try {
-//			PushToFirehose.push(remoteResponse, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+			ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+			Source xmlSource = new DOMSource(remoteDoc);
+			Result outputTarget = new StreamResult(outputStream);
+			TransformerFactory.newInstance().newTransformer().transform(xmlSource, outputTarget);
+			InputStream is = new ByteArrayInputStream(outputStream.toByteArray());
+			content = Transformation.transformInMemory(is, getServletContext().getResource(xslt).toURI());
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logger.error("Wrong xslt URI", e);
+			throw new RuntimeException(e);
 		}
+		PushToFirehose.push(content, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+
 		iteration(start, total, session, doc);
 
 		// System.out.println(getServletContext().getResource("/"));
@@ -91,9 +95,16 @@ public class ProxyServletMaven extends HttpServlet {
 		for (int i = start + 1; i <= total; i++) {
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
+			String content;
+			try {
+				content = Transformation.transformInMemory(response, getServletContext().getResource(xslt).toURI());
+			} catch (Exception e) {
+				logger.error("Wrong xslt URI", e);
+				throw new RuntimeException(e);
+			}
 //			writeDocument(response, session, Integer.toString(i));
 			try {
-				PushToFirehose.push(response, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+				PushToFirehose.push(content, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
 			} catch (Exception e) {
 				logger.error("Firehose error", e);
 			}

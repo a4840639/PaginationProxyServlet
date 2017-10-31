@@ -15,29 +15,23 @@ package edu.osu.cse5911;
  * permissions and limitations under the License.
  */
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.*;
 
-import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.regions.Region;
-import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagement;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.identitymanagement.model.GetRoleRequest;
+import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehose;
 import com.amazonaws.services.kinesisfirehose.AmazonKinesisFirehoseClient;
+import com.amazonaws.services.kinesisfirehose.model.DeleteDeliveryStreamRequest;
 import com.amazonaws.services.kinesisfirehose.model.DeliveryStreamDescription;
 import com.amazonaws.services.kinesisfirehose.model.DescribeDeliveryStreamRequest;
 import com.amazonaws.services.kinesisfirehose.model.DescribeDeliveryStreamResult;
@@ -47,8 +41,8 @@ import com.amazonaws.services.kinesisfirehose.model.PutRecordBatchRequest;
 import com.amazonaws.services.kinesisfirehose.model.PutRecordBatchResult;
 import com.amazonaws.services.kinesisfirehose.model.PutRecordRequest;
 import com.amazonaws.services.kinesisfirehose.model.Record;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.util.StringUtils;
 
 /**
  * Abstract class that contains all the common methods used in samples for
@@ -56,7 +50,7 @@ import com.amazonaws.util.StringUtils;
  */
 public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	// S3 properties
-	protected static AmazonS3Client s3Client;
+	protected static AmazonS3 s3Client;
 	// protected static boolean createS3Bucket;
 	protected static String s3BucketARN;
 	protected static String s3BucketName;
@@ -64,7 +58,7 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	protected static String s3RegionName;
 
 	// DeliveryStream properties
-	protected static AmazonKinesisFirehoseClient firehoseClient;
+	protected static AmazonKinesisFirehose firehoseClient;
 	// protected static String accountId;
 	protected static String deliveryStreamName;
 	protected static String firehoseRegion;
@@ -75,7 +69,6 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	// protected static String s3DestinationAWSKMSKeyId;
 	protected static Integer s3DestinationSizeInMBs;
 	protected static Integer s3DestinationIntervalInSeconds;
-
 
 	// Default wait interval for data to be delivered in specified destination.
 	protected static final int DEFAULT_WAIT_INTERVAL_FOR_DATA_DELIVERY_SECS = 300;
@@ -90,7 +83,7 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	protected static AmazonIdentityManagement iamClient;
 
 	// Logger
-	private static final Log LOG = LogFactory.getLog(AbstractAmazonKinesisFirehoseDelivery.class);
+	private static final Logger LOG = LogManager.getLogger(AbstractAmazonKinesisFirehoseDelivery.class);
 
 	/**
 	 * Method to initialize the clients using the specified AWSCredentials.
@@ -102,27 +95,24 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 		 * The ProfileCredentialsProvider will return your [default] credential profile
 		 * by reading from the credentials file located at (~/.aws/credentials).
 		 */
-		AWSCredentials credentials = null;
-		try {
-			credentials = new ProfileCredentialsProvider().getCredentials();
-		} catch (Exception e) {
-			throw new AmazonClientException("Cannot load the credentials from the credential profiles file. "
-					+ "Please make sure that your credentials file is at the correct "
-					+ "location (~/.aws/credentials), and is in valid format.", e);
-		}
+		// AWSCredentials credentials = null;
+		// try {
+		// credentials = new ProfileCredentialsProvider().getCredentials();
+		// } catch (Exception e) {
+		// throw new AmazonClientException("Cannot load the credentials from the
+		// credential profiles file. "
+		// + "Please make sure that your credentials file is at the correct "
+		// + "location (~/.aws/credentials), and is in valid format.", e);
+		// }
 
 		// S3 client
-		s3Client = new AmazonS3Client(credentials);
-		Region s3Region = RegionUtils.getRegion(s3RegionName);
-		s3Client.setRegion(s3Region);
+		s3Client = AmazonS3Client.builder().withRegion(s3RegionName).build();
 
 		// Firehose client
-		firehoseClient = new AmazonKinesisFirehoseClient(credentials);
-		firehoseClient.setRegion(RegionUtils.getRegion(firehoseRegion));
+		firehoseClient = AmazonKinesisFirehoseClient.builder().withRegion(firehoseRegion).build();
 
 		// IAM client
-		iamClient = new AmazonIdentityManagementClient(credentials);
-		iamClient.setRegion(RegionUtils.getRegion(iamRegion));
+		iamClient = AmazonIdentityManagementClient.builder().withRegion(iamRegion).build();
 	}
 
 	/**
@@ -176,6 +166,25 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 
 	/**
 	 * Method to put records in the specified delivery stream by reading contents
+	 * from sample input file using PutRecord API.
+	 *
+	 * @throws IOException
+	 */
+	protected static void putRecordIntoDeliveryStream(String str) throws IOException {
+
+		PutRecordRequest putRecordRequest = new PutRecordRequest();
+		putRecordRequest.setDeliveryStreamName(deliveryStreamName);
+
+		Record record = createRecord(str);
+		putRecordRequest.setRecord(record);
+
+		// Put record into the DeliveryStream
+		firehoseClient.putRecord(putRecordRequest);
+
+	}
+
+	/**
+	 * Method to put records in the specified delivery stream by reading contents
 	 * from sample input file using PutRecordBatch API.
 	 *
 	 * @throws IOException
@@ -205,15 +214,24 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 			}
 		}
 	}
+	
+	//TODO
+	protected static void deleteDeliveryStream(String name) throws Exception {
+
+		DeleteDeliveryStreamRequest deleteStreamRequest = new DeleteDeliveryStreamRequest();
+		deleteStreamRequest = deleteStreamRequest.withDeliveryStreamName(s3ObjectPrefix);
+		firehoseClient.deleteDeliveryStream(deleteStreamRequest);
+	}
 
 	/**
-	* Method to create the IAM role.
-	*
-	* @param s3Prefix the s3Prefix to be specified in role policy (only when KMS
-	key ARN is specified)
-	* @return the role ARN
-	* @throws InterruptedException
-	*/
+	 * Method to create the IAM role.
+	 *
+	 * @param s3Prefix
+	 *            the s3Prefix to be specified in role policy (only when KMS key ARN
+	 *            is specified)
+	 * @return the role ARN
+	 * @throws InterruptedException
+	 */
 	protected static String createIamRole(String s3Prefix) throws InterruptedException {
 		String roleARN = iamClient.getRole(new GetRoleRequest().withRoleName(iamRoleName)).getRole().getArn();
 		return roleARN;

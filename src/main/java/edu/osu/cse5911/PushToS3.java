@@ -11,8 +11,9 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 
 public class PushToS3 {
+	private static final Logger logger = LogManager.getLogger(AbstractAmazonKinesisFirehoseDelivery.class);
 
-	public static void push(String uploadFileName, String bucketName, String keyName, Logger logger) {
+	public static void push(String uploadFileName, String bucketName, String keyName) {
 		AmazonS3 s3client = AmazonS3Client.builder().withRegion("us-east-1").withForceGlobalBucketAccessEnabled(true)
 				.build();
 		s3client.getBucketLocation(bucketName);

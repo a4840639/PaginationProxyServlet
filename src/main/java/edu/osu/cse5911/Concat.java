@@ -9,7 +9,8 @@ import java.io.OutputStream;
 import org.apache.logging.log4j.*;
 
 public class Concat {
-	public static void concat(String directory, int start, int total, Logger logger) {
+	private static final Logger logger = LogManager.getLogger(AbstractAmazonKinesisFirehoseDelivery.class);
+	public static void concat(String directory, int start, int total) {
 		File dirOutput = new File(directory);
 		// deleteDir(dirOutput);
 		dirOutput.mkdirs();
