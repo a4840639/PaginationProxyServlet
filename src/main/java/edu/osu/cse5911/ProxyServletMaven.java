@@ -56,55 +56,60 @@ public class ProxyServletMaven extends HttpServlet {
 
 		logger.info("Enterring application");
 		String session = request.getSession().getId();
-//		String directory = tempdir + "/" + session;
 		Document doc = parse(request.getInputStream());
 		InputStream remoteResponse = connect(doc);
 		Document remoteDoc = parse(remoteResponse);
 		int start = Integer.parseInt(getNode(page, doc).getTextContent());
 		int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
 		String content;
+		logger.info("Page  " + start + ":");
 		try {
-			ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-			Source xmlSource = new DOMSource(remoteDoc);
-			Result outputTarget = new StreamResult(outputStream);
-			TransformerFactory.newInstance().newTransformer().transform(xmlSource, outputTarget);
-			InputStream is = new ByteArrayInputStream(outputStream.toByteArray());
+			InputStream is = transformDocToInputStream(remoteDoc);
 			content = Transformation.transformInMemory(is, getServletContext().getResource(xslt).toURI());
 		} catch (Exception e) {
-			logger.error("Wrong xslt URI", e);
+			logger.error("Error during transformation", e);
 			throw new RuntimeException(e);
 		}
-		PushToFirehose.push(content, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+		
+		try {
+			PushToFirehose.init("us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+		} catch (Exception e) {
+			logger.error("Error while creating the delivery stream", e);
+		}
+		PushToFirehose.push(content);
 
 		iteration(start, total, session, doc);
-
-		// System.out.println(getServletContext().getResource("/"));
-//		try {
-//			Transformation.transform(directory, start, total, getServletContext().getResource(xslt).toURI(), logger);
-//		} catch (Exception e) {
-//			logger.error("Wrong xslt URI", e);
-//			throw new RuntimeException(e);
-//		}
-//		Concat.concat(directory, start, total, logger);
-//		PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, logger);
-//		Transformation.deleteDir(new File(directory));
+		
+		logger.info("Trying to wait");
+		try {	
+			Thread.sleep(60000);
+		} catch (InterruptedException e) {
+			logger.error("Error trying to sleep", e);
+		}
+		logger.info("Done wait");
+		
+		try {
+			AbstractAmazonKinesisFirehoseDelivery.deleteDeliveryStream();
+		} catch (Exception e) {
+			logger.error("Error while deleting the delivery stream", e);
+		}
 
 	}
 
 	void iteration(int start, int total, String session, Document is) throws IOException {
 		for (int i = start + 1; i <= total; i++) {
+			logger.info("Page  " + i + ":");
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
 			String content;
 			try {
 				content = Transformation.transformInMemory(response, getServletContext().getResource(xslt).toURI());
 			} catch (Exception e) {
-				logger.error("Wrong xslt URI", e);
+				logger.error("Error during transformation", e);
 				throw new RuntimeException(e);
 			}
-//			writeDocument(response, session, Integer.toString(i));
 			try {
-				PushToFirehose.push(content, "us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role", "us-east-1");
+				PushToFirehose.push(content);
 			} catch (Exception e) {
 				logger.error("Firehose error", e);
 			}
@@ -124,39 +129,14 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 		return doc;
 	}
-
-	void writeDocument(InputStream is, String dict, String file) {
-		BufferedReader rd = new BufferedReader(new InputStreamReader(is));
-		String line;
-		new File(dict).mkdirs();
-		File outputFile = new File(dict + "/" + file);
-		FileWriter fout;
-		try {
-			fout = new FileWriter(outputFile);
-			while ((line = rd.readLine()) != null) {
-				fout.write(line);
-			}
-			fout.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-			logger.error("Error writing document", e);
-			throw new RuntimeException(e);
-		}
-
-	}
-
-	void writeDocument(Document doc, String dict, String file) {
-		new File(dict).mkdirs();
-		Transformer transformer;
-		try {
-			transformer = TransformerFactory.newInstance().newTransformer();
-			Result output = new StreamResult(new File(dict + "/" + file));
-			Source input = new DOMSource(doc);
-			transformer.transform(input, output);
-		} catch (Exception e) {
-			logger.error("Error writing document", e);
-			throw new RuntimeException(e);
-		}
+	
+	InputStream transformDocToInputStream(Document id) throws Exception{
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		Source xmlSource = new DOMSource(id);
+		Result outputTarget = new StreamResult(outputStream);
+		TransformerFactory.newInstance().newTransformer().transform(xmlSource, outputTarget);
+		InputStream is = new ByteArrayInputStream(outputStream.toByteArray());
+		return is;
 	}
 
 	void sendDocument(Document doc, OutputStream os) {
@@ -174,20 +154,7 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	Node getNode(String xpath, Document doc) {
-		// // Evaluate XPath against Document itself
-		// XPath xPath = XPathFactory.newInstance().newXPath();
-		// NodeList nodes = null;
-		// try {
-		// nodes = (NodeList) xPath.evaluate(xpath, doc.getDocumentElement(),
-		// XPathConstants.NODESET);
-		// } catch (XPathExpressionException e) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace();
-		// System.err.println("Error finding node");
-		// }
-		// return nodes.item(0);
 		return doc.getElementsByTagName(xpath).item(0);
-
 	}
 
 	InputStream connect(Document doc) throws IOException {

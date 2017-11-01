@@ -59,14 +59,12 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 
 	// DeliveryStream properties
 	protected static AmazonKinesisFirehose firehoseClient;
-	// protected static String accountId;
 	protected static String deliveryStreamName;
 	protected static String firehoseRegion;
 	// protected static boolean enableUpdateDestination;
 
 	// S3Destination Properties
 	protected static String iamRoleName;
-	// protected static String s3DestinationAWSKMSKeyId;
 	protected static Integer s3DestinationSizeInMBs;
 	protected static Integer s3DestinationIntervalInSeconds;
 
@@ -216,7 +214,7 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	}
 	
 	//TODO
-	protected static void deleteDeliveryStream(String name) throws Exception {
+	protected static void deleteDeliveryStream() throws Exception {
 
 		DeleteDeliveryStreamRequest deleteStreamRequest = new DeleteDeliveryStreamRequest();
 		deleteStreamRequest = deleteStreamRequest.withDeliveryStreamName(s3ObjectPrefix);
