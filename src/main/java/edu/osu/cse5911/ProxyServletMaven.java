@@ -3,7 +3,6 @@ package edu.osu.cse5911;
 import java.io.*;
 import java.net.*;
 
-import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -33,19 +32,28 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String totalPages;
 	private static String xslt;
 	private static String bucketName;
+	private static String s3RegionName;
 	private static String tempdir;
-	private static Logger logger;
+	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 
 	@Override
 	public void init() throws ServletException {
-		logger = LogManager.getLogger(ProxyServletMaven.class);
+		logger.info("Initializing...");
 		endpoint = getInitParameter("endpoint");
 		page = getInitParameter("page");
 		totalPages = getInitParameter("totalPages");
 		xslt = getInitParameter("xslt");
 		bucketName = getInitParameter("bucketName");
-		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
-		logger.info("Done init");
+		s3RegionName = getInitParameter("s3RegionName");
+
+		logger.info("Endpoint : " + endpoint);
+		logger.info("Page number attribute : " + page);
+		logger.info("Total page number attribute : " + totalPages);
+		logger.info("Relative path to the XSLT file : " + xslt);
+		logger.info("S3 bucket : " + bucketName);
+		logger.info("S3 region : " + s3RegionName);
+
+		logger.info("Initializtion complete");
 	}
 
 	/**
@@ -57,9 +65,9 @@ public class ProxyServletMaven extends HttpServlet {
 
 		String session = request.getSession().getId();
 		if (session.length() > 32) {
-			session = session.substring(32);
+			session = session.substring(31);
 		}
-		logger.info("Entering the application with session " + session);
+		logger.info("Starting the session : " + session);
 		Document doc = parse(request.getInputStream());
 		Thread myThread = new ProxyServletThread(doc, session);
 		myThread.start();
@@ -69,6 +77,7 @@ public class ProxyServletMaven extends HttpServlet {
 
 	void iteration(int start, int total, String session, Document is) {
 		for (int i = start + 1; i <= total; i++) {
+			logger.info("Page " + i);
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
 			writeDocument(response, session, Integer.toString(i));
@@ -174,21 +183,21 @@ public class ProxyServletMaven extends HttpServlet {
 		public void run() {
 			
 			String directory = tempdir + "/" + session;
+			int start = Integer.parseInt(getNode(page, doc).getTextContent());
+			logger.info("Page " + start);
+			
 			InputStream remoteResponse = connect(doc);
 			Document remoteDoc = parse(remoteResponse);
-			int start = Integer.parseInt(getNode(page, doc).getTextContent());
 			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
+			
 			writeDocument(remoteDoc, directory, "/" + start);
 			iteration(start, total, directory, doc);
-			try {
-				Transformation.transform(directory, start, total, getServletContext().getResourceAsStream(xslt));
-			} catch (Exception e) {
-				logger.error("Wrong xslt URI", e);
-				throw new RuntimeException(e);
-			}
+			Transformation.transform(directory, start, total, getServletContext().getResourceAsStream(xslt));
 			Concat.concat(directory, start, total);
-			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session);
+			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
+			logger.info("Deleting the working directory");
 			Transformation.deleteDir(new File(directory));
+			logger.info("Session complete");
 		}
 	}
 

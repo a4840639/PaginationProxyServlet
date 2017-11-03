@@ -11,8 +11,8 @@ import org.apache.logging.log4j.*;
 public class Concat {
 	private static final Logger logger = LogManager.getLogger(Concat.class);
 	public static void concat(String directory, int start, int total) {
+		logger.info("Concatenating...");
 		File dirOutput = new File(directory);
-		// deleteDir(dirOutput);
 		dirOutput.mkdirs();
 
 		String outputPath = "" + dirOutput + "/mergedFile";
@@ -29,8 +29,6 @@ public class Concat {
 					out.write(buf, 0, b);
 					out.flush();
 				}
-				// Skip ahead in the input to the opening document element
-				// System.out.println("RootFile " + rootFile);
 			}
 			out.close();
 
@@ -39,7 +37,6 @@ public class Concat {
 			throw new RuntimeException(e);
 		}
 
-		logger.info("Done Concatenating.");
-		logger.info("Merged File: " + outputPath);
+		logger.info("Concatenation complete");
 	}
 }

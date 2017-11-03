@@ -12,9 +12,8 @@ public class Transformation {
 	private static final Logger logger = LogManager.getLogger(Transformation.class);
 	
 	public static void transform(String directory, int start, int total, InputStream xslt) {
-		logger.info("Start Transforming");
+		logger.info("Transforming...");
 		File dirTransformed = new File(directory + "/transformed");
-		deleteDir(dirTransformed);
 		dirTransformed.mkdirs();
 
 		int count = start;
@@ -36,7 +35,7 @@ public class Transformation {
 			throw new RuntimeException(e);
 		}
 
-		logger.info("Done Transforming");
+		logger.info("Transforming complete");
 	}
 	
 

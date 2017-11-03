@@ -13,8 +13,8 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 public class PushToS3 {
 	private static final Logger logger = LogManager.getLogger(PushToS3.class);
 
-	public static void push(String uploadFileName, String bucketName, String keyName) {
-		AmazonS3 s3client = AmazonS3Client.builder().withRegion("us-east-1").withForceGlobalBucketAccessEnabled(true)
+	public static void push(String uploadFileName, String bucketName, String keyName, String s3RegionName) {
+		AmazonS3 s3client = AmazonS3Client.builder().withRegion(s3RegionName).withForceGlobalBucketAccessEnabled(true)
 				.build();
 		s3client.getBucketLocation(bucketName);
 		try {
