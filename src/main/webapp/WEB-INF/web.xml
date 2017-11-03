@@ -27,6 +27,22 @@
 			<param-name>bucketName</param-name>
 			<param-value>wso2mystreammykinase</param-value>
 		</init-param>
+		<init-param>
+			<param-name>s3RegionName</param-name>
+			<param-value>us-east-1</param-value>
+		</init-param>
+		<init-param>
+			<param-name>firehoseRegion</param-name>
+			<param-value>us-east-1</param-value>
+		</init-param>
+		<init-param>
+			<param-name>iamRegion</param-name>
+			<param-value>us-east-1</param-value>
+		</init-param>
+		<init-param>
+			<param-name>iamRoleName</param-name>
+			<param-value>firehose_delivery_role</param-value>
+		</init-param>
 	</servlet>
 	<servlet-mapping>
 		<servlet-name>ProxyServletMaven</servlet-name>

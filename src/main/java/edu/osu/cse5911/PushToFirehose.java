@@ -1,6 +1,5 @@
 package edu.osu.cse5911;
 
-
 /*
  * Copyright 2012-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *
@@ -27,7 +26,6 @@ import com.amazonaws.services.kinesisfirehose.model.CreateDeliveryStreamRequest;
 import com.amazonaws.services.kinesisfirehose.model.EncryptionConfiguration;
 import com.amazonaws.services.kinesisfirehose.model.ExtendedS3DestinationConfiguration;
 import com.amazonaws.services.kinesisfirehose.model.NoEncryptionConfig;
-
 
 /**
  * Amazon Kinesis Firehose is a fully managed service for real-time streaming
@@ -67,38 +65,43 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 
 	// Logger
 	private static final Logger LOG = LogManager.getLogger(PushToFirehose.class);
-	
-	public static void init(String in_s3RegionName, String in_s3BucketName, String in_s3ObjectPrefix, String in_firehoseRegion, String in_iamRoleName, String in_iamRegion) {
+
+	public static void init(String in_s3RegionName, String in_s3BucketName, String in_firehoseRegion,
+			String in_iamRoleName, String in_iamRegion) {
 		s3RegionName = in_s3RegionName;
 		s3BucketName = in_s3BucketName;
 		s3BucketARN = getBucketARN(s3BucketName);
-		s3ObjectPrefix = in_s3ObjectPrefix;
 
 		s3DestinationSizeInMBs = 128;
-		s3DestinationIntervalInSeconds = 60;
+		// s3DestinationIntervalInSeconds = 60;
 
-		deliveryStreamName = in_s3ObjectPrefix;
 		firehoseRegion = in_firehoseRegion;
 		iamRoleName = in_iamRoleName;
 		iamRegion = in_iamRegion;
-		
+
 		try {
 			initClients();
-			// Create the DeliveryStream
-			createDeliveryStream();
 		} catch (Exception e) {
 			LOG.error("Caught exception while creating Amazon clients", e);
 		}
 
 	}
 
-	public static void push(String content) {
-		
-		
+	public static void createDeliveryStreamHelper(String deliveryStreamName, int s3DestinationIntervalInSeconds) {
+		try {
+			createDeliveryStream(deliveryStreamName, deliveryStreamName + "/", s3DestinationIntervalInSeconds);
+		} catch (Exception e) {
+			LOG.error("Caught exception while creating delivery stream", e);
+		}
+
+	}
+
+	public static void push(String content, String deliveryStreamName) {
+
 		try {
 			// Put records into deliveryStream
 			LOG.info("Putting records in deliveryStream : " + deliveryStreamName);
-			putRecordIntoDeliveryStream(content);
+			putRecordIntoDeliveryStream(content, deliveryStreamName);
 
 		} catch (AmazonServiceException ase) {
 			LOG.error("Caught Amazon Service Exception");
@@ -117,7 +120,8 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 	 *
 	 * @throws Exception
 	 */
-	private static void createDeliveryStream() throws Exception {
+	private static void createDeliveryStream(String deliveryStreamName, String s3ObjectPrefix,
+			Integer s3DestinationIntervalInSeconds) throws Exception {
 
 		boolean deliveryStreamExists = false;
 
@@ -169,6 +173,7 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 
 			// The Delivery Stream is now being created.
 			LOG.info("Creating DeliveryStream : " + deliveryStreamName);
+			LOG.info("Delivery interval : " + s3DestinationIntervalInSeconds);
 			waitForDeliveryStreamToBecomeAvailable(deliveryStreamName);
 		}
 	}

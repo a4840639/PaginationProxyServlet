@@ -54,19 +54,19 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	// protected static boolean createS3Bucket;
 	protected static String s3BucketARN;
 	protected static String s3BucketName;
-	protected static String s3ObjectPrefix;
+	// protected static String s3ObjectPrefix;
 	protected static String s3RegionName;
 
 	// DeliveryStream properties
 	protected static AmazonKinesisFirehose firehoseClient;
-	protected static String deliveryStreamName;
+	// protected static String deliveryStreamName;
 	protected static String firehoseRegion;
 	// protected static boolean enableUpdateDestination;
 
 	// S3Destination Properties
 	protected static String iamRoleName;
 	protected static Integer s3DestinationSizeInMBs;
-	protected static Integer s3DestinationIntervalInSeconds;
+	// protected static Integer s3DestinationIntervalInSeconds;
 
 	// Default wait interval for data to be delivered in specified destination.
 	protected static final int DEFAULT_WAIT_INTERVAL_FOR_DATA_DELIVERY_SECS = 300;
@@ -142,7 +142,8 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	 *
 	 * @throws IOException
 	 */
-	protected static void putRecordIntoDeliveryStream(InputStream inputStream) throws IOException {
+	protected static void putRecordIntoDeliveryStream(InputStream inputStream, String deliveryStreamName)
+			throws IOException {
 
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
 			String line = null;
@@ -168,7 +169,7 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	 *
 	 * @throws IOException
 	 */
-	protected static void putRecordIntoDeliveryStream(String str) throws IOException {
+	protected static void putRecordIntoDeliveryStream(String str, String deliveryStreamName) throws IOException {
 
 		PutRecordRequest putRecordRequest = new PutRecordRequest();
 		putRecordRequest.setDeliveryStreamName(deliveryStreamName);
@@ -187,7 +188,8 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	 *
 	 * @throws IOException
 	 */
-	protected static void putRecordBatchIntoDeliveryStream(InputStream inputStream) throws IOException {
+	protected static void putRecordBatchIntoDeliveryStream(InputStream inputStream, String deliveryStreamName)
+			throws IOException {
 
 		List<Record> recordList = new ArrayList<Record>();
 		int batchSize = 0;
@@ -200,7 +202,7 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 				batchSize++;
 
 				if (batchSize == BATCH_PUT_MAX_SIZE) {
-					putRecordBatch(recordList);
+					putRecordBatch(recordList, deliveryStreamName);
 
 					recordList.clear();
 					batchSize = 0;
@@ -208,16 +210,17 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 			}
 
 			if (batchSize > 0) {
-				putRecordBatch(recordList);
+				putRecordBatch(recordList, deliveryStreamName);
 			}
 		}
 	}
-	
-	//TODO
-	protected static void deleteDeliveryStream() throws Exception {
 
+	// TODO
+	protected static void deleteDeliveryStream(String deliveryStreamName) {
+
+		LOG.info("Deleting delivery stream: " + deliveryStreamName);
 		DeleteDeliveryStreamRequest deleteStreamRequest = new DeleteDeliveryStreamRequest();
-		deleteStreamRequest = deleteStreamRequest.withDeliveryStreamName(s3ObjectPrefix);
+		deleteStreamRequest = deleteStreamRequest.withDeliveryStreamName(deliveryStreamName);
 		firehoseClient.deleteDeliveryStream(deleteStreamRequest);
 	}
 
@@ -316,7 +319,7 @@ public abstract class AbstractAmazonKinesisFirehoseDelivery {
 	 *            the collection of records
 	 * @return the output of PutRecordBatch
 	 */
-	private static PutRecordBatchResult putRecordBatch(List<Record> recordList) {
+	private static PutRecordBatchResult putRecordBatch(List<Record> recordList, String deliveryStreamName) {
 		PutRecordBatchRequest putRecordBatchRequest = new PutRecordBatchRequest();
 		putRecordBatchRequest.setDeliveryStreamName(deliveryStreamName);
 		putRecordBatchRequest.setRecords(recordList);

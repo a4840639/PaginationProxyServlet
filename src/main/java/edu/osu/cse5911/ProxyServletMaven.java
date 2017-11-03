@@ -28,21 +28,47 @@ public class ProxyServletMaven extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 
 	private static String endpoint;
+	// XML attributes to read
 	private static String page;
 	private static String totalPages;
+	// Path to the XSLT file
 	private static String xslt;
+
 	private static String bucketName;
-	private static Logger logger;
+	private static String s3RegionName;
+	private static String firehoseRegion;
+	private static String iamRoleName;
+	private static String iamRegion;
+
+	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 
 	@Override
 	public void init() throws ServletException {
-		logger = LogManager.getLogger(ProxyServletMaven.class);
+
+		logger.info("Initializing...");
 		endpoint = getInitParameter("endpoint");
 		page = getInitParameter("page");
 		totalPages = getInitParameter("totalPages");
 		xslt = getInitParameter("xslt");
 		bucketName = getInitParameter("bucketName");
-		logger.info("Done init");
+		s3RegionName = getInitParameter("s3RegionName");
+		firehoseRegion = getInitParameter("firehoseRegion");
+		iamRoleName = getInitParameter("iamRoleName");
+		iamRegion = getInitParameter("iamRegion");
+
+		logger.info("Endpoint : " + endpoint);
+		logger.info("Page number attribute : " + page);
+		logger.info("Total page number attribute : " + totalPages);
+		logger.info("Relative path to the XSLT file : " + xslt);
+		logger.info("S3 bucket : " + bucketName);
+		logger.info("S3 region : " + s3RegionName);
+		logger.info("Firehose region : " + firehoseRegion);
+		logger.info("IAM role name : " + iamRoleName);
+		logger.info("IAM region : " + iamRegion);
+
+		PushToFirehose.init(s3RegionName, bucketName, firehoseRegion, iamRoleName, iamRegion);
+
+		logger.info("Initializtion complete");
 	}
 
 	/**
@@ -52,10 +78,10 @@ public class ProxyServletMaven extends HttpServlet {
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 		String session = request.getSession().getId();
-		if (session.length() > 10) {
-			session = session.substring(0, 10);
+		if (session.length() > 32) {
+			session = session.substring(31);
 		}
-		logger.info("Entering the application with session " + session);
+		logger.info("Starting the session : " + session);
 		Document doc = parse(request.getInputStream());
 		Thread myThread = new ProxyServletThread(doc, session);
 		myThread.start();
@@ -67,18 +93,9 @@ public class ProxyServletMaven extends HttpServlet {
 			logger.info("Page  " + i + ":");
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
-			String content;
-			try {
-				content = Transformation.transformInMemory(response, getServletContext().getResourceAsStream(xslt));
-			} catch (Exception e) {
-				logger.error("Error during transformation", e);
-				throw new RuntimeException(e);
-			}
-			try {
-				PushToFirehose.push(content);
-			} catch (Exception e) {
-				logger.error("Firehose error", e);
-			}
+			String content = Transformation.transformInMemory(response, getServletContext().getResourceAsStream(xslt));
+			PushToFirehose.push(content, session);
+
 		}
 	}
 
@@ -96,11 +113,15 @@ public class ProxyServletMaven extends HttpServlet {
 		return doc;
 	}
 
-	private InputStream transformDocToInputStream(Document id) throws Exception {
+	private InputStream transformDocToInputStream(Document id) {
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		Source xmlSource = new DOMSource(id);
 		Result outputTarget = new StreamResult(outputStream);
-		TransformerFactory.newInstance().newTransformer().transform(xmlSource, outputTarget);
+		try {
+			TransformerFactory.newInstance().newTransformer().transform(xmlSource, outputTarget);
+		} catch (TransformerException | TransformerFactoryConfigurationError e) {
+			logger.error("Error transforming XML to InputStream", e);
+		}
 		InputStream is = new ByteArrayInputStream(outputStream.toByteArray());
 		return is;
 	}
@@ -144,53 +165,44 @@ public class ProxyServletMaven extends HttpServlet {
 		return is;
 	}
 
+	private int getS3DestinationIntervalInSeconds(int pages) {
+		return pages < 20 ? 60 : pages * 3;
+	}
+
 	public class ProxyServletThread extends Thread {
 		Document doc;
 		String session;
+
 		public ProxyServletThread(Document in_doc, String in_session) {
 			doc = in_doc;
 			session = in_session;
 		}
-		
+
 		public void run() {
-			
 			InputStream remoteResponse = connect(doc);
 			Document remoteDoc = parse(remoteResponse);
 			int start = Integer.parseInt(getNode(page, doc).getTextContent());
 			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
-			String content;
-			logger.info("Page  " + start + ":");
-			try {
-				InputStream is = transformDocToInputStream(remoteDoc);
-				content = Transformation.transformInMemory(is, getServletContext().getResourceAsStream(xslt));
-			} catch (Exception e) {
-				logger.error("Error during transformation", e);
-				throw new RuntimeException(e);
-			}
 
-			try {
-				PushToFirehose.init("us-east-1", bucketName, session, "us-east-1", "firehose_delivery_role",
-						"us-east-1");
-			} catch (Exception e) {
-				logger.error("Error while creating the delivery stream", e);
-			}
-			PushToFirehose.push(content);
-
+			// create delivery stream
+			int s3DestinationIntervalInSeconds = getS3DestinationIntervalInSeconds(total - start + 1);
+			PushToFirehose.createDeliveryStreamHelper(session, s3DestinationIntervalInSeconds);
+			
+			logger.info("Page " + start + ":");
+			InputStream is = transformDocToInputStream(remoteDoc);
+			String content = Transformation.transformInMemory(is, getServletContext().getResourceAsStream(xslt));
+			PushToFirehose.push(content, session);
+			
 			iteration(start, total, session, doc);
 
-			logger.info("Sleep for ");
+			logger.info("Wait " + s3DestinationIntervalInSeconds + "s to make the stream deliverd");
 			try {
-				Thread.sleep(60000);
+				Thread.sleep(1000 * s3DestinationIntervalInSeconds);
 			} catch (InterruptedException e) {
-				logger.error("Error trying to sleep", e);
+				logger.error("Error trying to wait", e);
 			}
-			logger.info("Done wait");
-
-			try {
-				AbstractAmazonKinesisFirehoseDelivery.deleteDeliveryStream();
-			} catch (Exception e) {
-				logger.error("Error while deleting the delivery stream", e);
-			}
+			AbstractAmazonKinesisFirehoseDelivery.deleteDeliveryStream(session);
+			logger.info("Session complete");
 		}
 	}
 }
