@@ -66,7 +66,7 @@ public class PushToFirehose extends AbstractAmazonKinesisFirehoseDelivery {
 	// private static final String CONFIG_FILE = "firehosetos3sample.properties";
 
 	// Logger
-	private static final Logger LOG = LogManager.getLogger(AbstractAmazonKinesisFirehoseDelivery.class);
+	private static final Logger LOG = LogManager.getLogger(PushToFirehose.class);
 	
 	public static void init(String in_s3RegionName, String in_s3BucketName, String in_s3ObjectPrefix, String in_firehoseRegion, String in_iamRoleName, String in_iamRegion) {
 		s3RegionName = in_s3RegionName;

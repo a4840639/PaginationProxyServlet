@@ -6,23 +6,23 @@ import javax.xml.transform.stream.StreamSource;
 import java.io.File;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.net.URI;
 
 import org.apache.logging.log4j.*;
 
 public class Transformation {
-	private static final Logger logger = LogManager.getLogger(AbstractAmazonKinesisFirehoseDelivery.class);
+	private static final Logger logger = LogManager.getLogger(Transformation.class);
 	
-	public static String transformInMemory(InputStream is, URI xsltURI) {
+	public static String transformInMemory(InputStream is, InputStream xslt) {
 		logger.info("Start Transforming");
 		StringWriter writer = new StringWriter();
 		StreamResult result = new StreamResult( writer );
 		Source s = new StreamSource(is);
 		
 		try {
+			xslt.reset();
 			TransformerFactory factory = TransformerFactory.newInstance();		
-			Source xslt = new StreamSource(new File(xsltURI));
-			Transformer transformer = factory.newTransformer(xslt);
+			Source xsltSource = new StreamSource(xslt);
+			Transformer transformer = factory.newTransformer(xsltSource);
 
 			transformer.transform(s, result);	
 		} catch (Exception e) {
