@@ -13,11 +13,9 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-//import javax.xml.xpath.*;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
-//import org.w3c.dom.NodeList;
 
 import org.apache.logging.log4j.*;
 
@@ -57,31 +55,19 @@ public class ProxyServletMaven extends HttpServlet {
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 
-		logger.info("Enterring application");
 		String session = request.getSession().getId();
-		String directory = tempdir + "/" + session;
-		Document doc = parse(request.getInputStream());
-		InputStream remoteResponse = connect(doc);
-		Document remoteDoc = parse(remoteResponse);
-		int start = Integer.parseInt(getNode(page, doc).getTextContent());
-		int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
-		writeDocument(remoteDoc, directory, "/" + start);
-		iteration(start, total, directory, doc);
-
-		// System.out.println(getServletContext().getResource("/"));
-		try {
-			Transformation.transform(directory, start, total, getServletContext().getResource(xslt).toURI(), logger);
-		} catch (Exception e) {
-			logger.error("Wrong xslt URI", e);
-			throw new RuntimeException(e);
+		if (session.length() > 32) {
+			session = session.substring(32);
 		}
-		Concat.concat(directory, start, total, logger);
-		PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, logger);
-		Transformation.deleteDir(new File(directory));
-
+		logger.info("Entering the application with session " + session);
+		Document doc = parse(request.getInputStream());
+		Thread myThread = new ProxyServletThread(doc, session);
+		myThread.start();
+		response.getOutputStream().write(session.getBytes());
+		
 	}
 
-	void iteration(int start, int total, String session, Document is) throws IOException {
+	void iteration(int start, int total, String session, Document is) {
 		for (int i = start + 1; i <= total; i++) {
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
@@ -152,32 +138,58 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	Node getNode(String xpath, Document doc) {
-		// // Evaluate XPath against Document itself
-		// XPath xPath = XPathFactory.newInstance().newXPath();
-		// NodeList nodes = null;
-		// try {
-		// nodes = (NodeList) xPath.evaluate(xpath, doc.getDocumentElement(),
-		// XPathConstants.NODESET);
-		// } catch (XPathExpressionException e) {
-		// // TODO Auto-generated catch block
-		// e.printStackTrace();
-		// System.err.println("Error finding node");
-		// }
-		// return nodes.item(0);
 		return doc.getElementsByTagName(xpath).item(0);
 
 	}
 
-	InputStream connect(Document doc) throws IOException {
-		URL url = new URL(endpoint);
-		URLConnection con = url.openConnection();
+	private InputStream connect(Document doc) {
+		URL url;
+		URLConnection con;
+		InputStream is;
+		try {
+			url = new URL(endpoint);
+			con = url.openConnection();
 
-		con.setRequestProperty("SOAPAction", endpoint);
-		con.setDoOutput(true);
+			con.setRequestProperty("SOAPAction", endpoint);
+			con.setDoOutput(true);
 
-		sendDocument(doc, con.getOutputStream());
+			sendDocument(doc, con.getOutputStream());
 
-		return con.getInputStream();
+			is = con.getInputStream();
+		} catch (Exception e) {
+			logger.error("Error connnecting to the endpoint", e);
+			throw new RuntimeException(e);
+		}
+		return is;
+	}
+	
+	public class ProxyServletThread extends Thread {
+		Document doc;
+		String session;
+		public ProxyServletThread(Document in_doc, String in_session) {
+			doc = in_doc;
+			session = in_session;
+		}
+		
+		public void run() {
+			
+			String directory = tempdir + "/" + session;
+			InputStream remoteResponse = connect(doc);
+			Document remoteDoc = parse(remoteResponse);
+			int start = Integer.parseInt(getNode(page, doc).getTextContent());
+			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
+			writeDocument(remoteDoc, directory, "/" + start);
+			iteration(start, total, directory, doc);
+			try {
+				Transformation.transform(directory, start, total, getServletContext().getResourceAsStream(xslt));
+			} catch (Exception e) {
+				logger.error("Wrong xslt URI", e);
+				throw new RuntimeException(e);
+			}
+			Concat.concat(directory, start, total);
+			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session);
+			Transformation.deleteDir(new File(directory));
+		}
 	}
 
 }
