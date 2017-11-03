@@ -44,7 +44,6 @@ public class ProxyServletMaven extends HttpServlet {
 
 	@Override
 	public void init() throws ServletException {
-
 		logger.info("Initializing...");
 		endpoint = getInitParameter("endpoint");
 		page = getInitParameter("page");
@@ -90,12 +89,11 @@ public class ProxyServletMaven extends HttpServlet {
 
 	private void iteration(int start, int total, String session, Document is) {
 		for (int i = start + 1; i <= total; i++) {
-			logger.info("Page  " + i + ":");
+			logger.info("Page  " + i + " :");
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
 			String content = Transformation.transformInMemory(response, getServletContext().getResourceAsStream(xslt));
 			PushToFirehose.push(content, session);
-
 		}
 	}
 
@@ -188,7 +186,7 @@ public class ProxyServletMaven extends HttpServlet {
 			int s3DestinationIntervalInSeconds = getS3DestinationIntervalInSeconds(total - start + 1);
 			PushToFirehose.createDeliveryStreamHelper(session, s3DestinationIntervalInSeconds);
 			
-			logger.info("Page " + start + ":");
+			logger.info("Page " + start + " :");
 			InputStream is = transformDocToInputStream(remoteDoc);
 			String content = Transformation.transformInMemory(is, getServletContext().getResourceAsStream(xslt));
 			PushToFirehose.push(content, session);
