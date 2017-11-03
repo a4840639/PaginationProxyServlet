@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+	xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+	id="WebApp_ID" version="3.1">
+	<servlet>
+		<display-name>ProxyServletMaven</display-name>
+		<servlet-name>ProxyServletMaven</servlet-name>
+		<servlet-class>edu.osu.cse5911.ProxyServletMaven</servlet-class>
+		<init-param>
+			<param-name>endpoint</param-name>
+			<param-value>http://127.0.0.1:8080</param-value>
+		</init-param>
+		<init-param>
+			<param-name>page</param-name>
+			<param-value>bsvc:Page</param-value>
+		</init-param>
+		<init-param>
+			<param-name>totalPages</param-name>
+			<param-value>wd:Total_Pages</param-value>
+		</init-param>
+		<init-param>
+			<param-name>xslt</param-name>
+			<param-value>/config/DW_WD_HR_GetWorkers_All.xsl</param-value>
+		</init-param>
+		<init-param>
+			<param-name>bucketName</param-name>
+			<param-value>wso2mystreammykinase</param-value>
+		</init-param>
+	</servlet>
+	<servlet-mapping>
+		<servlet-name>ProxyServletMaven</servlet-name>
+		<url-pattern>/ProxyServletMaven</url-pattern>
+	</servlet-mapping>
+</web-app>
