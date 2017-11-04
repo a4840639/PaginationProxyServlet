@@ -9,6 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
@@ -68,20 +69,28 @@ public class ProxyServletMaven extends HttpServlet {
 			session = session.substring(0, 31);
 		}
 		logger.info("Starting the session : " + session);
+		logger.info("Multi-threaded access");
 		Document doc = parse(request.getInputStream());
 		Thread myThread = new ProxyServletThread(doc, session);
 		myThread.start();
 		response.getOutputStream().write(session.getBytes());
-		
+
 	}
 
-	void iteration(int start, int total, String session, Document is) {
+	void iterationMT(int start, int total, String session, Document is) throws ParserConfigurationException, InterruptedException {
+		logger.info("Requesting pages...");
+		Thread[] myThreads = new Thread[total - start];
 		for (int i = start + 1; i <= total; i++) {
-			logger.info("Page " + i);
-			getNode(page, is).setTextContent(Integer.toString(i));
-			InputStream response = connect(is);
-			writeDocument(response, session, Integer.toString(i));
+			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
+			
+			myThreads[i - start - 1] = new IterationThread(doc, session, i);
+			myThreads[i - start - 1].start();
 		}
+		for (int i = start + 1; i <= total; i++) {
+			myThreads[i - start - 1].join();
+		}
+		logger.info("All pages complete");
 	}
 
 	Document parse(InputStream is) {
@@ -171,33 +180,61 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 		return is;
 	}
-	
+
 	public class ProxyServletThread extends Thread {
 		Document doc;
 		String session;
+
 		public ProxyServletThread(Document in_doc, String in_session) {
 			doc = in_doc;
 			session = in_session;
 		}
-		
+
 		public void run() {
-			
 			String directory = tempdir + "/" + session;
 			int start = Integer.parseInt(getNode(page, doc).getTextContent());
 			logger.info("Page " + start);
-			
+
 			InputStream remoteResponse = connect(doc);
 			Document remoteDoc = parse(remoteResponse);
 			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
-			
+
 			writeDocument(remoteDoc, directory, "/" + start);
-			iteration(start, total, directory, doc);
+			try {
+				iterationMT(start, total, directory, doc);
+			} catch (ParserConfigurationException e) {
+				logger.info("Error creating DOM documents", e);
+				throw new RuntimeException(e);
+			} catch (InterruptedException e) {
+				logger.info("Error joining threads", e);
+				throw new RuntimeException(e);
+			}
 			Transformation.transform(directory, start, total, getServletContext().getResourceAsStream(xslt));
 			Concat.concat(directory, start, total);
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
 			logger.info("Deleting the working directory");
 			Transformation.deleteDir(new File(directory));
 			logger.info("Session complete");
+		}
+	}
+
+	public class IterationThread extends Thread {
+		String session;
+		Document doc;
+		int i;
+
+		public IterationThread(Document in_doc, String in_session, int in_i) {
+			doc = in_doc;
+			session = in_session;
+			i = in_i;
+		}
+
+		public void run() {
+			logger.info("Requesting Page " + i);
+			getNode(page, doc).setTextContent(Integer.toString(i));
+			InputStream response = connect(doc);
+			writeDocument(response, session, Integer.toString(i));
+			logger.info("Page " + i + " complete");
 		}
 	}
 
