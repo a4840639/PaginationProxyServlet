@@ -146,21 +146,27 @@ public class ProxyServletMaven extends HttpServlet {
 		URL url;
 		URLConnection con;
 		InputStream is;
-		try {
-			url = new URL(endpoint);
-			con = url.openConnection();
+		int maxTries = 10;
+		int count = 0;
+		while (true) {
+			try {
+				url = new URL(endpoint);
+				con = url.openConnection();
 
-			con.setRequestProperty("SOAPAction", endpoint);
-			con.setDoOutput(true);
+				con.setRequestProperty("SOAPAction", endpoint);
+				con.setDoOutput(true);
 
-			sendDocument(doc, con.getOutputStream());
+				sendDocument(doc, con.getOutputStream());
 
-			is = con.getInputStream();
-		} catch (Exception e) {
-			logger.error("Error connnecting to the endpoint", e);
-			throw new RuntimeException(e);
+				is = con.getInputStream();
+				return is;
+			} catch (Exception e) {
+				if (++count >= maxTries) {
+					logger.error("Error connnecting to the endpoint", e);
+					throw new RuntimeException(e);
+				}
+			}
 		}
-		return is;
 	}
 
 	private int getS3DestinationIntervalInSeconds(int pages) {
