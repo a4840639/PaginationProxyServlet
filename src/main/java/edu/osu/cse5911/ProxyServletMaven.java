@@ -78,7 +78,7 @@ public class ProxyServletMaven extends HttpServlet {
 			throws ServletException, IOException {
 		String session = request.getSession().getId();
 		if (session.length() > 32) {
-			session = session.substring(31);
+			session = session.substring(0, 31);
 		}
 		logger.info("Starting the session : " + session);
 		Document doc = parse(request.getInputStream());
