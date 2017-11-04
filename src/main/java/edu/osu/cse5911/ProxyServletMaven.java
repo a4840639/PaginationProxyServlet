@@ -76,12 +76,14 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	void iteration(int start, int total, String session, Document is) {
+		logger.info("Requesting pages...");
 		for (int i = start + 1; i <= total; i++) {
 			logger.info("Page " + i);
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
 			writeDocument(response, session, Integer.toString(i));
 		}
+		logger.info("All pages complete");
 	}
 
 	Document parse(InputStream is) {
