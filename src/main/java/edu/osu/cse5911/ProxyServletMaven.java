@@ -34,6 +34,7 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String bucketName;
 	private static String s3RegionName;
 	private static String tempdir;
+	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 
 	@Override
@@ -45,6 +46,12 @@ public class ProxyServletMaven extends HttpServlet {
 		xslt = getInitParameter("xslt");
 		bucketName = getInitParameter("bucketName");
 		s3RegionName = getInitParameter("s3RegionName");
+		try {
+			url = new URL(endpoint);
+		} catch (MalformedURLException e) {
+			logger.error("Failed to initialize the endpoint", e);
+			throw new RuntimeException(e);
+		}
 
 		logger.info("Endpoint : " + endpoint);
 		logger.info("Page number attribute : " + page);
@@ -81,7 +88,7 @@ public class ProxyServletMaven extends HttpServlet {
 			logger.info("Page " + i);
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
-			writeDocument(response, session, Integer.toString(i));
+			Transformation.transform(i, response);
 		}
 		logger.info("All pages complete");
 	}
@@ -98,40 +105,6 @@ public class ProxyServletMaven extends HttpServlet {
 			throw new RuntimeException(e);
 		}
 		return doc;
-	}
-
-	void writeDocument(InputStream is, String dict, String file) {
-		BufferedReader rd = new BufferedReader(new InputStreamReader(is));
-		String line;
-		new File(dict).mkdirs();
-		File outputFile = new File(dict + "/" + file);
-		FileWriter fout;
-		try {
-			fout = new FileWriter(outputFile);
-			while ((line = rd.readLine()) != null) {
-				fout.write(line);
-			}
-			fout.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-			logger.error("Error writing document", e);
-			throw new RuntimeException(e);
-		}
-
-	}
-
-	void writeDocument(Document doc, String dict, String file) {
-		new File(dict).mkdirs();
-		Transformer transformer;
-		try {
-			transformer = TransformerFactory.newInstance().newTransformer();
-			Result output = new StreamResult(new File(dict + "/" + file));
-			Source input = new DOMSource(doc);
-			transformer.transform(input, output);
-		} catch (Exception e) {
-			logger.error("Error writing document", e);
-			throw new RuntimeException(e);
-		}
 	}
 
 	void sendDocument(Document doc, OutputStream os) {
@@ -154,14 +127,12 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	private InputStream connect(Document doc) {
-		URL url;
 		URLConnection con;
 		InputStream is;
 		int maxTries = 10;
 		int count = 0;
 		while (true) {
 			try {
-				url = new URL(endpoint);
 				con = url.openConnection();
 
 				con.setRequestProperty("SOAPAction", endpoint);
@@ -178,6 +149,19 @@ public class ProxyServletMaven extends HttpServlet {
 				}
 			}
 		}
+	}
+	
+	private InputStream transformDocToInputStream(Document id) {
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		Source xmlSource = new DOMSource(id);
+		Result outputTarget = new StreamResult(outputStream);
+		try {
+			TransformerFactory.newInstance().newTransformer().transform(xmlSource, outputTarget);
+		} catch (TransformerException | TransformerFactoryConfigurationError e) {
+			logger.error("Error transforming XML to InputStream", e);
+		}
+		InputStream is = new ByteArrayInputStream(outputStream.toByteArray());
+		return is;
 	}
 	
 	public class ProxyServletThread extends Thread {
@@ -198,9 +182,12 @@ public class ProxyServletMaven extends HttpServlet {
 			Document remoteDoc = parse(remoteResponse);
 			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
 			
-			writeDocument(remoteDoc, directory, "/" + start);
+			remoteResponse = transformDocToInputStream(remoteDoc);
+			Transformation.newDir(directory);
+			Transformation.setTransformer(getServletContext().getResourceAsStream(xslt));
+			Transformation.transform(start, remoteResponse);
+			
 			iteration(start, total, directory, doc);
-			Transformation.transform(directory, start, total, getServletContext().getResourceAsStream(xslt));
 			Concat.concat(directory, start, total);
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
 			logger.info("Deleting the working directory");
