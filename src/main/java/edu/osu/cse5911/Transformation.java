@@ -32,6 +32,7 @@ public class Transformation {
 	public static void transform(int i, InputStream is) {
 		logger.info("Transforme Page " + i);
 		try {
+			transformer.reset();
 			Source text = new StreamSource(is);
 			String filePath = dir + "/" + i;
 			transformer.transform(text, new StreamResult(new File(filePath)));
