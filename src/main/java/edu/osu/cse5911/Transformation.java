@@ -11,7 +11,7 @@ import org.apache.logging.log4j.*;
 public class Transformation {
 	private static final Logger logger = LogManager.getLogger(Transformation.class);
 	private static TransformerFactory factory = TransformerFactory.newInstance();
-	private static Transformer transformer;
+	private static Templates templates;
 	private static File dir;
 	
 	public static void newDir(String directory) {
@@ -19,10 +19,10 @@ public class Transformation {
 		dir.mkdirs();
 	}
 	
-	public static void setTransformer(InputStream xslt) {
+	public static void setTemplates(InputStream xslt) {
 		Source xsltSource = new StreamSource(xslt);
 		try {
-			transformer = factory.newTransformer(xsltSource);
+			templates = factory.newTemplates(xsltSource);
 		} catch (TransformerConfigurationException e) {
 			logger.error("Error setting up the xlst transformation: ", e);
 			throw new RuntimeException(e);
@@ -34,7 +34,7 @@ public class Transformation {
 		try {
 			Source text = new StreamSource(is);
 			String filePath = dir + "/" + i;
-			transformer.transform(text, new StreamResult(new File(filePath)));
+			templates.newTransformer().transform(text, new StreamResult(new File(filePath)));
 		} catch (Exception e) {
 			logger.error("Error during transformation: ", e);
 			throw new RuntimeException(e);

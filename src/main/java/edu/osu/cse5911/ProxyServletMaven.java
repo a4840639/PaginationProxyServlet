@@ -191,7 +191,7 @@ public class ProxyServletMaven extends HttpServlet {
 
 			remoteResponse = transformDocToInputStream(remoteDoc);
 			Transformation.newDir(directory);
-			Transformation.setTransformer(getServletContext().getResourceAsStream(xslt));
+			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
 			Transformation.transform(start, remoteResponse);
 			try {
 				iterationMT(start, total, directory, doc);
@@ -206,7 +206,7 @@ public class ProxyServletMaven extends HttpServlet {
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
 			logger.info("Deleting the working directory");
 			Transformation.deleteDir(new File(directory));
-			logger.info("Session complete");
+			logger.info("Session " + session + " complete");
 		}
 	}
 
