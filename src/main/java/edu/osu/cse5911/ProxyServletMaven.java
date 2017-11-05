@@ -218,7 +218,7 @@ public class ProxyServletMaven extends HttpServlet {
 				logger.error("Error trying to wait", e);
 			}
 			AbstractAmazonKinesisFirehoseDelivery.deleteDeliveryStream(session);
-			logger.info("Session complete");
+			logger.info("Session " + session + " complete");
 		}
 	}
 }
