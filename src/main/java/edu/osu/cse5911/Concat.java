@@ -12,16 +12,14 @@ public class Concat {
 	private static final Logger logger = LogManager.getLogger(Concat.class);
 	public static void concat(String directory, int start, int total) {
 		logger.info("Concatenating...");
-		File dirOutput = new File(directory);
-		dirOutput.mkdirs();
 
-		String outputPath = "" + dirOutput + "/mergedFile";
+		String outputPath = directory + "/mergedFile";
 		try {
 			OutputStream out = new FileOutputStream(new File(outputPath));
 			byte[] buf = new byte[1024];
 
 			for (int i = start; i <= total; i++) {
-				File rootFile = new File(directory + "/transformed/" + i);
+				File rootFile = new File(directory + "/" + i);
 				@SuppressWarnings("resource")
 				InputStream in = new FileInputStream(rootFile);
 				int b = 0;

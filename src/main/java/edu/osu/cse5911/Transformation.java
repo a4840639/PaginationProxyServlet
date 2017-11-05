@@ -10,32 +10,37 @@ import org.apache.logging.log4j.*;
 
 public class Transformation {
 	private static final Logger logger = LogManager.getLogger(Transformation.class);
+	private static TransformerFactory factory = TransformerFactory.newInstance();
+	private static Transformer transformer;
+	private static File dir;
 	
-	public static void transform(String directory, int start, int total, InputStream xslt) {
-		logger.info("Transforming...");
-		File dirTransformed = new File(directory + "/transformed");
-		dirTransformed.mkdirs();
-
-		int count = start;
+	public static void newDir(String directory) {
+		dir = new File(directory);
+		dir.mkdirs();
+	}
+	
+	public static void setTransformer(InputStream xslt) {
+		Source xsltSource = new StreamSource(xslt);
 		try {
-		while (count <= total) {
-			xslt.reset();
-			File rootFile = new File(directory + "/" + count);
-			TransformerFactory factory = TransformerFactory.newInstance();
-			Source xsltSource = new StreamSource(xslt);
-			Transformer transformer = factory.newTransformer(xsltSource);
-			Source text = new StreamSource(rootFile);
-			String filePath = "" + dirTransformed + "/" + count;
-
-			transformer.transform(text, new StreamResult(new File(filePath)));
-			count++;			
+			transformer = factory.newTransformer(xsltSource);
+		} catch (TransformerConfigurationException e) {
+			logger.error("Error setting up the xlst transformation: ", e);
+			throw new RuntimeException(e);
 		}
+	}
+	
+	public static void transform(int i, InputStream is) {
+//		logger.info("Transforming...");
+		try {
+			Source text = new StreamSource(is);
+			String filePath = dir + "/" + i;
+			transformer.transform(text, new StreamResult(new File(filePath)));
 		} catch (Exception e) {
 			logger.error("Error during transformation: ", e);
 			throw new RuntimeException(e);
 		}
 
-		logger.info("Transforming complete");
+//		logger.info("Page " + i + " Transformed");
 	}
 	
 
