@@ -40,6 +40,7 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String iamRoleName;
 	private static String iamRegion;
 
+	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 
 	@Override
@@ -54,6 +55,12 @@ public class ProxyServletMaven extends HttpServlet {
 		firehoseRegion = getInitParameter("firehoseRegion");
 		iamRoleName = getInitParameter("iamRoleName");
 		iamRegion = getInitParameter("iamRegion");
+		try {
+			url = new URL(endpoint);
+		} catch (MalformedURLException e) {
+			logger.error("Failed to initialize the endpoint", e);
+			throw new RuntimeException(e);
+		}
 
 		logger.info("Endpoint : " + endpoint);
 		logger.info("Page number attribute : " + page);
@@ -92,7 +99,7 @@ public class ProxyServletMaven extends HttpServlet {
 			logger.info("Page  " + i + " :");
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
-			String content = Transformation.transformInMemory(response, getServletContext().getResourceAsStream(xslt));
+			String content = Transformation.transformInMemory(response);
 			PushToFirehose.push(content, session);
 		}
 	}
@@ -143,14 +150,12 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	private InputStream connect(Document doc) {
-		URL url;
 		URLConnection con;
 		InputStream is;
 		int maxTries = 10;
 		int count = 0;
 		while (true) {
 			try {
-				url = new URL(endpoint);
 				con = url.openConnection();
 
 				con.setRequestProperty("SOAPAction", endpoint);
@@ -170,7 +175,13 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	private int getS3DestinationIntervalInSeconds(int pages) {
-		return pages < 20 ? 60 : pages * 3;
+		int value = pages * 3;
+		if (value < 60) {
+			value = 60;
+		} else if (value > 900) {
+			value = 900;
+		}
+		return value;
 	}
 
 	public class ProxyServletThread extends Thread {
@@ -193,8 +204,9 @@ public class ProxyServletMaven extends HttpServlet {
 			PushToFirehose.createDeliveryStreamHelper(session, s3DestinationIntervalInSeconds);
 			
 			logger.info("Page " + start + " :");
+			Transformation.setTransformer(getServletContext().getResourceAsStream(xslt));
 			InputStream is = transformDocToInputStream(remoteDoc);
-			String content = Transformation.transformInMemory(is, getServletContext().getResourceAsStream(xslt));
+			String content = Transformation.transformInMemory(is);
 			PushToFirehose.push(content, session);
 			
 			iteration(start, total, session, doc);

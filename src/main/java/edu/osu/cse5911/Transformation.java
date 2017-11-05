@@ -11,19 +11,27 @@ import org.apache.logging.log4j.*;
 
 public class Transformation {
 	private static final Logger logger = LogManager.getLogger(Transformation.class);
+	private static TransformerFactory factory = TransformerFactory.newInstance();
+	private static Transformer transformer;
 	
-	public static String transformInMemory(InputStream is, InputStream xslt) {
+	public static void setTransformer(InputStream xslt) {
+		Source xsltSource = new StreamSource(xslt);
+		try {
+			transformer = factory.newTransformer(xsltSource);
+		} catch (TransformerConfigurationException e) {
+			logger.error("Error setting up the xlst transformation: ", e);
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public static String transformInMemory(InputStream is) {
 		logger.info("Start Transforming");
 		StringWriter writer = new StringWriter();
 		StreamResult result = new StreamResult( writer );
 		Source s = new StreamSource(is);
 		
 		try {
-			xslt.reset();
-			TransformerFactory factory = TransformerFactory.newInstance();		
-			Source xsltSource = new StreamSource(xslt);
-			Transformer transformer = factory.newTransformer(xsltSource);
-
+			transformer.reset();
 			transformer.transform(s, result);	
 		} catch (Exception e) {
 			logger.error("Error during transformation: ", e);
