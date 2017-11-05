@@ -30,7 +30,7 @@ public class Transformation {
 	}
 	
 	public static void transform(int i, InputStream is) {
-//		logger.info("Transforming...");
+		logger.info("Transforme Page " + i);
 		try {
 			Source text = new StreamSource(is);
 			String filePath = dir + "/" + i;
@@ -39,8 +39,6 @@ public class Transformation {
 			logger.error("Error during transformation: ", e);
 			throw new RuntimeException(e);
 		}
-
-//		logger.info("Page " + i + " Transformed");
 	}
 	
 
