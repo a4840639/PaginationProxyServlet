@@ -12,11 +12,9 @@ public class Transformation {
 	private static final Logger logger = LogManager.getLogger(Transformation.class);
 	private static TransformerFactory factory = TransformerFactory.newInstance();
 	private static Templates templates;
-	private static File dir;
 	
 	public static void newDir(String directory) {
-		dir = new File(directory);
-		dir.mkdirs();
+		new File(directory).mkdir();
 	}
 	
 	public static void setTemplates(InputStream xslt) {
@@ -29,7 +27,7 @@ public class Transformation {
 		}
 	}
 	
-	public static void transform(int i, InputStream is) {
+	public static void transform(String dir, int i, InputStream is) {
 		logger.info("Transforme Page " + i);
 		try {
 			Source text = new StreamSource(is);
