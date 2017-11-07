@@ -82,13 +82,13 @@ public class ProxyServletMaven extends HttpServlet {
 		
 	}
 
-	void iteration(int start, int total, String session, Document is) {
+	void iteration(int start, int total, String session, Document is, String directory) {
 		logger.info("Requesting pages...");
 		for (int i = start + 1; i <= total; i++) {
 			logger.info("Page " + i);
 			getNode(page, is).setTextContent(Integer.toString(i));
 			InputStream response = connect(is);
-			Transformation.transform(i, response);
+			Transformation.transform(directory, i, response);
 		}
 		logger.info("All pages complete");
 	}
@@ -185,9 +185,9 @@ public class ProxyServletMaven extends HttpServlet {
 			remoteResponse = transformDocToInputStream(remoteDoc);
 			Transformation.newDir(directory);
 			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
-			Transformation.transform(start, remoteResponse);
+			Transformation.transform(directory, start, remoteResponse);
 			
-			iteration(start, total, directory, doc);
+			iteration(start, total, directory, doc, directory);
 			Concat.concat(directory, start, total);
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
 			logger.info("Deleting the working directory");
