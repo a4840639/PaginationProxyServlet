@@ -184,7 +184,7 @@ public class ProxyServletMaven extends HttpServlet {
 			
 			remoteResponse = transformDocToInputStream(remoteDoc);
 			Transformation.newDir(directory);
-			Transformation.setTransformer(getServletContext().getResourceAsStream(xslt));
+			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
 			Transformation.transform(start, remoteResponse);
 			
 			iteration(start, total, directory, doc);
