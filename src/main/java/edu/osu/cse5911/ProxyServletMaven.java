@@ -204,7 +204,7 @@ public class ProxyServletMaven extends HttpServlet {
 			PushToFirehose.createDeliveryStreamHelper(session, s3DestinationIntervalInSeconds);
 			
 			logger.info("Page " + start + " :");
-			Transformation.setTransformer(getServletContext().getResourceAsStream(xslt));
+			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
 			InputStream is = transformDocToInputStream(remoteDoc);
 			String content = Transformation.transformInMemory(is);
 			PushToFirehose.push(content, session);

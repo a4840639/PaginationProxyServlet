@@ -12,12 +12,12 @@ import org.apache.logging.log4j.*;
 public class Transformation {
 	private static final Logger logger = LogManager.getLogger(Transformation.class);
 	private static TransformerFactory factory = TransformerFactory.newInstance();
-	private static Transformer transformer;
+	private static Templates templates;
 	
-	public static void setTransformer(InputStream xslt) {
+	public static void setTemplates(InputStream xslt) {
 		Source xsltSource = new StreamSource(xslt);
 		try {
-			transformer = factory.newTransformer(xsltSource);
+			templates = factory.newTemplates(xsltSource);
 		} catch (TransformerConfigurationException e) {
 			logger.error("Error setting up the xlst transformation: ", e);
 			throw new RuntimeException(e);
@@ -31,8 +31,7 @@ public class Transformation {
 		Source s = new StreamSource(is);
 		
 		try {
-			transformer.reset();
-			transformer.transform(s, result);	
+			templates.newTransformer().transform(s, result);	
 		} catch (Exception e) {
 			logger.error("Error during transformation: ", e);
 			throw new RuntimeException(e);
