@@ -84,14 +84,14 @@ public class ProxyServletMaven extends HttpServlet {
 
 	}
 
-	void iterationMT(int start, int total, String session, Document is, String directory) throws ParserConfigurationException, InterruptedException {
+	void iterationMT(int start, int total, Document is, String directory) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
 		Thread[] myThreads = new Thread[total - start];
 		for (int i = start + 1; i <= total; i++) {
 			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
 			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
 			
-			myThreads[i - start - 1] = new IterationThread(doc, session, i, directory);
+			myThreads[i - start - 1] = new IterationThread(doc, i, directory);
 			myThreads[i - start - 1].start();
 		}
 		for (int i = start + 1; i <= total; i++) {
@@ -194,7 +194,7 @@ public class ProxyServletMaven extends HttpServlet {
 			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
 			Transformation.transform(directory, start, remoteResponse);
 			try {
-				iterationMT(start, total, directory, doc, directory);
+				iterationMT(start, total, doc, directory);
 			} catch (ParserConfigurationException e) {
 				logger.info("Error creating DOM documents", e);
 				throw new RuntimeException(e);
@@ -211,14 +211,12 @@ public class ProxyServletMaven extends HttpServlet {
 	}
 
 	public class IterationThread extends Thread {
-		String session;
 		Document doc;
 		int i;
 		String directory;
 
-		public IterationThread(Document in_doc, String in_session, int in_i, String in_directory) {
+		public IterationThread(Document in_doc, int in_i, String in_directory) {
 			doc = in_doc;
-			session = in_session;
 			i = in_i;
 			directory = in_directory;
 		}
