@@ -229,9 +229,10 @@ public class ProxyServletMaven extends HttpServlet {
 				throw new RuntimeException(e);
 			}
 
-			long totalTimeBeforeWait = System.currentTimeMillis() - startTimeAfterWait;
-			logger.info("Time taken between the two waits: " + totalTimeBeforeWait / MPS + "." + totalTimeBeforeWait % MPS + "s");
-			s3DestinationIntervalInSeconds -= (int) totalTimeBeforeWait;
+			long totalTimeBetweenWaits = System.currentTimeMillis() - startTimeAfterWait;
+			logger.info("Time taken between the two waits: " + totalTimeBetweenWaits / MPS + "." + totalTimeBetweenWaits % MPS + "s");
+			
+			s3DestinationIntervalInSeconds -= (int) totalTimeBetweenWaits / MPS;
 			logger.info("Wait " + s3DestinationIntervalInSeconds + "s to make the stream deliverd");
 			try {
 				Thread.sleep(1000 * s3DestinationIntervalInSeconds);
