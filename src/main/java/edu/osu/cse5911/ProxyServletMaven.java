@@ -37,6 +37,7 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String tempdir;
 	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
+	final int MPS = 1000;
 
 	@Override
 	public void init() throws ServletException {
@@ -181,6 +182,7 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 
 		public void run() {
+			long startTime = System.currentTimeMillis();
 			String directory = tempdir + "/" + session;
 			int start = Integer.parseInt(getNode(page, doc).getTextContent());
 			logger.info("Page " + start);
@@ -206,7 +208,9 @@ public class ProxyServletMaven extends HttpServlet {
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
 			logger.info("Deleting the working directory");
 			Transformation.deleteDir(new File(directory));
+			long totalTime = System.currentTimeMillis() - startTime;
 			logger.info("Session " + session + " complete");
+			logger.info("Time taken: " + totalTime / MPS + "." + totalTime % MPS + "s");
 		}
 	}
 
