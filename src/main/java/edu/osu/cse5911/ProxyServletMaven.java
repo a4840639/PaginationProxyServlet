@@ -15,6 +15,7 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 import org.apache.logging.log4j.*;
@@ -28,40 +29,21 @@ public class ProxyServletMaven extends HttpServlet {
 	 */
 	private static final long serialVersionUID = 1L;
 
-	private static String endpoint;
-	private static String page;
-	private static String totalPages;
-	private static String xslt;
-	private static String bucketName;
-	private static String s3RegionName;
-	private static String tempdir;
-	private static URL url;
+	private String endpoint;
+	private String page;
+	private String totalPages;
+	private String xslt;
+	private String bucketName;
+	private String s3RegionName;
+	private String tempdir;
+	private URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 	final int MPS = 1000;
+	final String pageRequest = "paginlation:Request";
+	final String soapEnvelope = "soapenv:Envelope";
 
 	@Override
 	public void init() throws ServletException {
-		logger.info("Initializing...");
-		endpoint = getInitParameter("endpoint");
-		page = getInitParameter("page");
-		totalPages = getInitParameter("totalPages");
-		xslt = getInitParameter("xslt");
-		bucketName = getInitParameter("bucketName");
-		s3RegionName = getInitParameter("s3RegionName");
-		try {
-			url = new URL(endpoint);
-		} catch (MalformedURLException e) {
-			logger.error("Failed to initialize the endpoint", e);
-			throw new RuntimeException(e);
-		}
-
-		logger.info("Endpoint : " + endpoint);
-		logger.info("Page number attribute : " + page);
-		logger.info("Total page number attribute : " + totalPages);
-		logger.info("Relative path to the XSLT file : " + xslt);
-		logger.info("S3 bucket : " + bucketName);
-		logger.info("S3 region : " + s3RegionName);
-
 		logger.info("Initializtion complete");
 	}
 
@@ -71,15 +53,15 @@ public class ProxyServletMaven extends HttpServlet {
 	 */
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
-
+		
 		String session = request.getSession().getId();
 		if (session.length() > 32) {
 			session = session.substring(0, 31);
 		}
 		logger.info("Starting the session : " + session);
-		logger.info("Multi-threaded access");
 		Document doc = parse(request.getInputStream());
-		Thread myThread = new ProxyServletThread(doc, session);
+		
+		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
 		myThread.start();
 		response.getOutputStream().write(session.getBytes());
 
@@ -87,16 +69,15 @@ public class ProxyServletMaven extends HttpServlet {
 
 	void iterationMT(int start, int total, Document is, String directory) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
-		Thread[] myThreads = new Thread[total - start];
-		for (int i = start + 1; i <= total; i++) {
-			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
-			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
+		Thread[] myThreads = new Thread[total - start + 1];
+		for (int i = start; i <= total; i++) {
+			Document doc = createDocumentFromNode(is.getDocumentElement());
 			
-			myThreads[i - start - 1] = new IterationThread(doc, i, directory);
-			myThreads[i - start - 1].start();
+			myThreads[i - start] = new Thread(new IterationRunnable(doc, i, directory));
+			myThreads[i - start].start();
 		}
-		for (int i = start + 1; i <= total; i++) {
-			myThreads[i - start - 1].join();
+		for (int i = start; i <= total; i++) {
+			myThreads[i - start].join();
 		}
 		logger.info("All pages complete");
 	}
@@ -171,18 +152,74 @@ public class ProxyServletMaven extends HttpServlet {
 		InputStream is = new ByteArrayInputStream(outputStream.toByteArray());
 		return is;
 	}
+	
+	private void parseConfiguration(Document doc) {
+		endpoint = getNode("paginlation:Endpoint", doc).getTextContent();
+		page = getNode("paginlation:Page", doc).getTextContent();
+		totalPages = getNode("paginlation:TotalPages", doc).getTextContent();
+		xslt = getNode("paginlation:XSLT", doc).getTextContent();
+		bucketName = getNode("paginlation:BucketName", doc).getTextContent();
+		s3RegionName = getNode("paginlation:S3RegionName", doc).getTextContent();
+		try {
+			url = new URL(endpoint);
+		} catch (MalformedURLException e) {
+			logger.error("Failed to initialize the endpoint", e);
+			throw new RuntimeException(e);
+		}
+		
+		logger.info("Endpoint : " + endpoint);
+		logger.info("Page number attribute : " + page);
+		logger.info("Total page number attribute : " + totalPages);
+		logger.info("Relative path to the XSLT file : " + xslt);
+		logger.info("S3 bucket : " + bucketName);
+		logger.info("S3 region : " + s3RegionName);
+	}
+	
+	private Document restoreOriginalRequest(Document doc) throws ParserConfigurationException {
+		Node node = ((Element) doc.getElementsByTagName(pageRequest).item(0)).getElementsByTagName(soapEnvelope).item(0);
+		Document newDocument = createDocumentFromNode(node);
+		return newDocument;
+	}
+	
+	private Document createDocumentFromNode(Node node) throws ParserConfigurationException {
+		Document newDocument = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+		newDocument.appendChild(newDocument.importNode(node, true));
+		return newDocument;
+	}
+	
+	public static void printDocument(Document doc, OutputStream out) throws IOException, TransformerException {
+	    TransformerFactory tf = TransformerFactory.newInstance();
+	    Transformer transformer = tf.newTransformer();
+	    transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
+	    transformer.setOutputProperty(OutputKeys.METHOD, "xml");
+	    transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+	    transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+	    transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
 
-	public class ProxyServletThread extends Thread {
+	    transformer.transform(new DOMSource(doc), 
+	         new StreamResult(new OutputStreamWriter(out, "UTF-8")));
+	}
+
+	public class ProxyServletRunnable implements Runnable {
 		Document doc;
 		String session;
 
-		public ProxyServletThread(Document in_doc, String in_session) {
+		public ProxyServletRunnable(Document in_doc, String in_session) {
 			doc = in_doc;
 			session = in_session;
 		}
 
 		public void run() {
 			long startTime = System.currentTimeMillis();
+			
+			parseConfiguration(doc);
+			try {
+				doc = restoreOriginalRequest(doc);
+			} catch (ParserConfigurationException e1) {
+				logger.info("Error restoring the original request", e1);
+				throw new RuntimeException(e1);
+			}
+			
 			String directory = tempdir + "/" + session;
 			int start = Integer.parseInt(getNode(page, doc).getTextContent());
 			logger.info("Page " + start);
@@ -196,7 +233,7 @@ public class ProxyServletMaven extends HttpServlet {
 			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
 			Transformation.transform(directory, start, remoteResponse);
 			try {
-				iterationMT(start, total, doc, directory);
+				iterationMT(start + 1, total, doc, directory);
 			} catch (ParserConfigurationException e) {
 				logger.info("Error creating DOM documents", e);
 				throw new RuntimeException(e);
@@ -214,12 +251,12 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 	}
 
-	public class IterationThread extends Thread {
+	public class IterationRunnable implements Runnable {
 		Document doc;
 		int i;
 		String directory;
 
-		public IterationThread(Document in_doc, int in_i, String in_directory) {
+		public IterationRunnable(Document in_doc, int in_i, String in_directory) {
 			doc = in_doc;
 			i = in_i;
 			directory = in_directory;
