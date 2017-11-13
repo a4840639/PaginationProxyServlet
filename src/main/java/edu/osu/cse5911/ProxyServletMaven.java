@@ -43,6 +43,7 @@ public class ProxyServletMaven extends HttpServlet {
 
 	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
+	final int MPS = 1000;
 
 	@Override
 	public void init() throws ServletException {
@@ -201,6 +202,7 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 
 		public void run() {
+			long startTime = System.currentTimeMillis();
 			InputStream remoteResponse = connect(doc);
 			Document remoteDoc = parse(remoteResponse);
 			int start = Integer.parseInt(getNode(page, doc).getTextContent());
@@ -209,6 +211,7 @@ public class ProxyServletMaven extends HttpServlet {
 			// create delivery stream
 			int s3DestinationIntervalInSeconds = getS3DestinationIntervalInSeconds(total - start + 1);
 			PushToFirehose.createDeliveryStreamHelper(session, s3DestinationIntervalInSeconds);
+			long startTimeAfterWait = System.currentTimeMillis();
 			
 			logger.info("Page " + start + " :");
 			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
@@ -226,6 +229,9 @@ public class ProxyServletMaven extends HttpServlet {
 				throw new RuntimeException(e);
 			}
 
+			long totalTimeBeforeWait = System.currentTimeMillis() - startTimeAfterWait;
+			logger.info("Time taken between the two waits: " + totalTimeBeforeWait / MPS + "." + totalTimeBeforeWait % MPS + "s");
+			s3DestinationIntervalInSeconds -= (int) totalTimeBeforeWait;
 			logger.info("Wait " + s3DestinationIntervalInSeconds + "s to make the stream deliverd");
 			try {
 				Thread.sleep(1000 * s3DestinationIntervalInSeconds);
@@ -233,7 +239,9 @@ public class ProxyServletMaven extends HttpServlet {
 				logger.error("Error trying to wait", e);
 			}
 			AbstractAmazonKinesisFirehoseDelivery.deleteDeliveryStream(session);
+			long totalTime = System.currentTimeMillis() - startTime;
 			logger.info("Session " + session + " complete");
+			logger.info("Total time taken: " + totalTime / MPS + "." + totalTime % MPS + "s");
 		}
 	}
 	
