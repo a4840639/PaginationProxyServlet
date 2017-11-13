@@ -9,6 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
@@ -94,14 +95,20 @@ public class ProxyServletMaven extends HttpServlet {
 		response.getOutputStream().write(session.getBytes());
 	}
 
-	private void iteration(int start, int total, String session, Document is) {
+	private void iterationMT(int start, int total, String session, Document is) throws ParserConfigurationException, InterruptedException {
+		logger.info("Requesting pages...");
+		Thread[] myThreads = new Thread[total - start];
 		for (int i = start + 1; i <= total; i++) {
-			logger.info("Page  " + i + " :");
-			getNode(page, is).setTextContent(Integer.toString(i));
-			InputStream response = connect(is);
-			String content = Transformation.transformInMemory(response);
-			PushToFirehose.push(content, session);
+			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
+			
+			myThreads[i - start - 1] = new IterationThread(doc, session, i);
+			myThreads[i - start - 1].start();
 		}
+		for (int i = start + 1; i <= total; i++) {
+			myThreads[i - start - 1].join();
+		}
+		logger.info("All pages complete");
 	}
 
 	private Document parse(InputStream is) {
@@ -209,7 +216,15 @@ public class ProxyServletMaven extends HttpServlet {
 			String content = Transformation.transformInMemory(is);
 			PushToFirehose.push(content, session);
 			
-			iteration(start, total, session, doc);
+			try {
+				iterationMT(start, total, session, doc);
+			} catch (ParserConfigurationException e) {
+				logger.info("Error creating DOM documents", e);
+				throw new RuntimeException(e);
+			} catch (InterruptedException e) {
+				logger.info("Error joining threads", e);
+				throw new RuntimeException(e);
+			}
 
 			logger.info("Wait " + s3DestinationIntervalInSeconds + "s to make the stream deliverd");
 			try {
@@ -219,6 +234,27 @@ public class ProxyServletMaven extends HttpServlet {
 			}
 			AbstractAmazonKinesisFirehoseDelivery.deleteDeliveryStream(session);
 			logger.info("Session " + session + " complete");
+		}
+	}
+	
+	public class IterationThread extends Thread {
+		String session;
+		Document doc;
+		int i;
+
+		public IterationThread(Document in_doc, String in_session, int in_i) {
+			doc = in_doc;
+			session = in_session;
+			i = in_i;
+		}
+
+		public void run() {
+			logger.info("Requesting Page " + i);
+			getNode(page, doc).setTextContent(Integer.toString(i));
+			InputStream response = connect(doc);
+			String content = Transformation.transformInMemory(response);
+			PushToFirehose.push(content, session);
+			logger.info("Page " + i + " complete");
 		}
 	}
 }
