@@ -85,14 +85,14 @@ public class ProxyServletMaven extends HttpServlet {
 
 	}
 
-	void iterationMT(int start, int total, Document is, String directory) throws ParserConfigurationException, InterruptedException {
+	void iterationMT(int start, int total, Document is, String directory, TransformationConcat trans) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
 		Thread[] myThreads = new Thread[total - start];
 		for (int i = start + 1; i <= total; i++) {
 			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
 			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
 			
-			myThreads[i - start - 1] = new IterationThread(doc, i, directory);
+			myThreads[i - start - 1] = new IterationThread(doc, i, directory, trans);
 			myThreads[i - start - 1].start();
 		}
 		for (int i = start + 1; i <= total; i++) {
@@ -192,11 +192,10 @@ public class ProxyServletMaven extends HttpServlet {
 			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
 
 			remoteResponse = transformDocToInputStream(remoteDoc);
-			Transformation.newDir(directory);
-			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
-			Transformation.transform(directory, start, remoteResponse);
+			TransformationConcat trans = new TransformationConcat(directory, getServletContext().getResourceAsStream(xslt));
+			trans.transform(start, remoteResponse);
 			try {
-				iterationMT(start, total, doc, directory);
+				iterationMT(start, total, doc, directory, trans);
 			} catch (ParserConfigurationException e) {
 				logger.info("Error creating DOM documents", e);
 				throw new RuntimeException(e);
@@ -204,10 +203,9 @@ public class ProxyServletMaven extends HttpServlet {
 				logger.info("Error joining threads", e);
 				throw new RuntimeException(e);
 			}
-			Concat.concat(directory, start, total);
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
 			logger.info("Deleting the working directory");
-			Transformation.deleteDir(new File(directory));
+			TransformationConcat.deleteDir(new File(directory));
 			long totalTime = System.currentTimeMillis() - startTime;
 			logger.info("Session " + session + " complete");
 			logger.info("Time taken: " + totalTime / MPS + "." + totalTime % MPS + "s");
@@ -218,18 +216,20 @@ public class ProxyServletMaven extends HttpServlet {
 		Document doc;
 		int i;
 		String directory;
+		TransformationConcat trans;
 
-		public IterationThread(Document in_doc, int in_i, String in_directory) {
+		public IterationThread(Document in_doc, int in_i, String in_directory, TransformationConcat in_trans) {
 			doc = in_doc;
 			i = in_i;
 			directory = in_directory;
+			trans = in_trans;
 		}
 
 		public void run() {
 			logger.info("Requesting Page " + i);
 			getNode(page, doc).setTextContent(Integer.toString(i));
 			InputStream response = connect(doc);
-			Transformation.transform(directory, i, response);
+			trans.transform(i, response);
 			logger.info("Page " + i + " complete");
 		}
 	}

@@ -4,41 +4,51 @@ import javax.xml.transform.*;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 import org.apache.logging.log4j.*;
 
-public class Transformation {
-	private static final Logger logger = LogManager.getLogger(Transformation.class);
-	private static TransformerFactory factory = TransformerFactory.newInstance();
-	private static Templates templates;
+public class TransformationConcat {
+	private static final Logger logger = LogManager.getLogger( TransformationConcat.class);
+	private TransformerFactory factory;
+	private Transformer transformer;
+	StreamResult out;
 	
-	public static void newDir(String directory) {
+	public  TransformationConcat (String directory, InputStream xslt) {
+		factory = TransformerFactory.newInstance();
 		new File(directory).mkdir();
-	}
-	
-	public static void setTemplates(InputStream xslt) {
+		String outputPath = directory + "/mergedFile";
+		try {
+			out = new StreamResult(new FileWriter(new File(outputPath), true));
+		} catch (IOException e1) {
+			logger.error("Error during concatination: ", e1);
+			throw new RuntimeException(e1);
+		}
 		Source xsltSource = new StreamSource(xslt);
 		try {
-			templates = factory.newTemplates(xsltSource);
+			transformer = factory.newTransformer(xsltSource);
 		} catch (TransformerConfigurationException e) {
 			logger.error("Error setting up the xlst transformation: ", e);
 			throw new RuntimeException(e);
 		}
 	}
 	
-	public static void transform(String dir, int i, InputStream is) {
+	public synchronized void transform(int i, InputStream is) {
 		logger.info("Transforme Page " + i);
 		try {
+			transformer.reset();
 			Source text = new StreamSource(is);
-			String filePath = dir + "/" + i;
-			templates.newTransformer().transform(text, new StreamResult(new File(filePath)));
+			transformer.transform(text, out);
 		} catch (Exception e) {
 			logger.error("Error during transformation: ", e);
 			throw new RuntimeException(e);
 		}
 	}
-	
 
 	static boolean deleteDir(File dir) {
 		if (dir.isDirectory()) {
