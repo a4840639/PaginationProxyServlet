@@ -165,8 +165,13 @@ public class ProxyServletMaven extends HttpServlet {
 		xslt = getNode("paginlation:XSLT", doc).getTextContent();
 		bucketName = getNode("paginlation:BucketName", doc).getTextContent();
 		s3RegionName = getNode("paginlation:S3RegionName", doc).getTextContent();
-		awsKey = getNode("paginlation:AWSKey", doc).getTextContent();
-		awsSecret = getNode("paginlation:AWSSecret", doc).getTextContent();
+		try {
+			awsKey = getNode("paginlation:AWSKey", doc).getTextContent();
+			awsSecret = getNode("paginlation:AWSSecret", doc).getTextContent();
+		} catch (NullPointerException e) {
+			logger.info("No external AWS credentials");
+		}
+		
 		try {
 			url = new URL(endpoint);
 		} catch (MalformedURLException e) {

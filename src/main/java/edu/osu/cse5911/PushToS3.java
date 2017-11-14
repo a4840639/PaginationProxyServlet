@@ -16,9 +16,18 @@ public class PushToS3 {
 	private static final Logger logger = LogManager.getLogger(PushToS3.class);
 
 	public static void push(String uploadFileName, String bucketName, String keyName, String s3RegionName, String awsKey, String awsSecret) {
-		BasicAWSCredentials awsCreds = new BasicAWSCredentials(awsKey, awsSecret);
-		AmazonS3 s3client = AmazonS3Client.builder().withCredentials(new AWSStaticCredentialsProvider(awsCreds)).withRegion(s3RegionName).withForceGlobalBucketAccessEnabled(true)
-				.build();
+		AmazonS3 s3client;
+		if (awsKey != null && awsSecret != null) {
+			logger.info("Use AWS credential in SOAP request");
+			BasicAWSCredentials awsCreds = new BasicAWSCredentials(awsKey, awsSecret);
+			s3client = AmazonS3Client.builder().withCredentials(new AWSStaticCredentialsProvider(awsCreds)).withRegion(s3RegionName).withForceGlobalBucketAccessEnabled(true)
+					.build();
+		} else {
+			logger.info("Use default AWS credential");
+			s3client = AmazonS3Client.builder().withRegion(s3RegionName).withForceGlobalBucketAccessEnabled(true)
+					.build();
+		}
+		
 		s3client.getBucketLocation(bucketName);
 		try {
 			logger.info("Uploading a new object to S3 from a file");
