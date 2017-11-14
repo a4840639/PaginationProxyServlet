@@ -3,6 +3,7 @@ package edu.osu.cse5911;
 import java.io.*;
 import java.net.*;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -34,6 +35,7 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String xslt;
 	private static String bucketName;
 	private static String s3RegionName;
+	
 	private static String tempdir;
 	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
@@ -61,6 +63,8 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("Relative path to the XSLT file : " + xslt);
 		logger.info("S3 bucket : " + bucketName);
 		logger.info("S3 region : " + s3RegionName);
+		
+		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
 
 		logger.info("Initializtion complete");
 	}
