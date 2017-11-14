@@ -6,6 +6,8 @@ import java.io.File;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.PutObjectRequest;
@@ -13,8 +15,9 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 public class PushToS3 {
 	private static final Logger logger = LogManager.getLogger(PushToS3.class);
 
-	public static void push(String uploadFileName, String bucketName, String keyName, String s3RegionName) {
-		AmazonS3 s3client = AmazonS3Client.builder().withRegion(s3RegionName).withForceGlobalBucketAccessEnabled(true)
+	public static void push(String uploadFileName, String bucketName, String keyName, String s3RegionName, String awsKey, String awsSecret) {
+		BasicAWSCredentials awsCreds = new BasicAWSCredentials(awsKey, awsSecret);
+		AmazonS3 s3client = AmazonS3Client.builder().withCredentials(new AWSStaticCredentialsProvider(awsCreds)).withRegion(s3RegionName).withForceGlobalBucketAccessEnabled(true)
 				.build();
 		s3client.getBucketLocation(bucketName);
 		try {

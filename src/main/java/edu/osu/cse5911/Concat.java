@@ -20,13 +20,13 @@ public class Concat {
 
 			for (int i = start; i <= total; i++) {
 				File rootFile = new File(directory + "/" + i);
-				@SuppressWarnings("resource")
 				InputStream in = new FileInputStream(rootFile);
 				int b = 0;
 				while ((b = in.read(buf)) >= 0) {
 					out.write(buf, 0, b);
 					out.flush();
 				}
+				in.close();
 			}
 			out.close();
 

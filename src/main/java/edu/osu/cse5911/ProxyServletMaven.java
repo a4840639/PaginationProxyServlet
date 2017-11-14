@@ -3,6 +3,7 @@ package edu.osu.cse5911;
 import java.io.*;
 import java.net.*;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -35,15 +36,19 @@ public class ProxyServletMaven extends HttpServlet {
 	private String xslt;
 	private String bucketName;
 	private String s3RegionName;
-	private String tempdir;
+	private String awsKey;
+	private String awsSecret;
 	private URL url;
+	private Transformation trans;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
+	private static String tempdir;
 	final int MPS = 1000;
 	final String pageRequest = "paginlation:Request";
 	final String soapEnvelope = "soapenv:Envelope";
 
 	@Override
 	public void init() throws ServletException {
+		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
 		logger.info("Initializtion complete");
 	}
 
@@ -67,13 +72,13 @@ public class ProxyServletMaven extends HttpServlet {
 
 	}
 
-	void iterationMT(int start, int total, Document is, String directory) throws ParserConfigurationException, InterruptedException {
+	void iterationMT(int start, int total, Document is) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
 		Thread[] myThreads = new Thread[total - start + 1];
 		for (int i = start; i <= total; i++) {
 			Document doc = createDocumentFromNode(is.getDocumentElement());
 			
-			myThreads[i - start] = new Thread(new IterationRunnable(doc, i, directory));
+			myThreads[i - start] = new Thread(new IterationRunnable(doc, i));
 			myThreads[i - start].start();
 		}
 		for (int i = start; i <= total; i++) {
@@ -160,6 +165,8 @@ public class ProxyServletMaven extends HttpServlet {
 		xslt = getNode("paginlation:XSLT", doc).getTextContent();
 		bucketName = getNode("paginlation:BucketName", doc).getTextContent();
 		s3RegionName = getNode("paginlation:S3RegionName", doc).getTextContent();
+		awsKey = getNode("paginlation:AWSKey", doc).getTextContent();
+		awsSecret = getNode("paginlation:AWSSecret", doc).getTextContent();
 		try {
 			url = new URL(endpoint);
 		} catch (MalformedURLException e) {
@@ -173,6 +180,8 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("Relative path to the XSLT file : " + xslt);
 		logger.info("S3 bucket : " + bucketName);
 		logger.info("S3 region : " + s3RegionName);
+		logger.info("AWSKey : " + awsKey);
+		logger.info("AWSSecret : " + awsSecret);
 	}
 	
 	private Document restoreOriginalRequest(Document doc) throws ParserConfigurationException {
@@ -222,18 +231,25 @@ public class ProxyServletMaven extends HttpServlet {
 			
 			String directory = tempdir + "/" + session;
 			int start = Integer.parseInt(getNode(page, doc).getTextContent());
-			logger.info("Page " + start);
-
-			InputStream remoteResponse = connect(doc);
-			Document remoteDoc = parse(remoteResponse);
-			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
-
-			remoteResponse = transformDocToInputStream(remoteDoc);
-			Transformation.newDir(directory);
-			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
-			Transformation.transform(directory, start, remoteResponse);
+			int total = 0;
+			int iterationStart = start;
+			trans = new Transformation(getServletContext().getResourceAsStream(xslt), directory);
+			if (getNode(totalPages, doc) == null) {
+				logger.info("No total pages availble, getting the first page");
+				logger.info("Requesting Page " + start);
+				InputStream remoteResponse = connect(doc);
+				Document remoteDoc = parse(remoteResponse);
+				total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
+				remoteResponse = transformDocToInputStream(remoteDoc);
+				trans.transform(start, remoteResponse);
+				iterationStart++;
+			} else {
+				logger.info("Total pages availble, iterate immediately");
+				total = Integer.parseInt(getNode(totalPages, doc).getTextContent());
+			}	
+			
 			try {
-				iterationMT(start + 1, total, doc, directory);
+				iterationMT(iterationStart, total, doc);
 			} catch (ParserConfigurationException e) {
 				logger.info("Error creating DOM documents", e);
 				throw new RuntimeException(e);
@@ -242,8 +258,9 @@ public class ProxyServletMaven extends HttpServlet {
 				throw new RuntimeException(e);
 			}
 			Concat.concat(directory, start, total);
-			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
+			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName, awsKey, awsSecret);
 			logger.info("Deleting the working directory");
+			logger.info(directory);
 			Transformation.deleteDir(new File(directory));
 			long totalTime = System.currentTimeMillis() - startTime;
 			logger.info("Session " + session + " complete");
@@ -254,19 +271,17 @@ public class ProxyServletMaven extends HttpServlet {
 	public class IterationRunnable implements Runnable {
 		Document doc;
 		int i;
-		String directory;
 
-		public IterationRunnable(Document in_doc, int in_i, String in_directory) {
+		public IterationRunnable(Document in_doc, int in_i) {
 			doc = in_doc;
 			i = in_i;
-			directory = in_directory;
 		}
 
 		public void run() {
 			logger.info("Requesting Page " + i);
 			getNode(page, doc).setTextContent(Integer.toString(i));
 			InputStream response = connect(doc);
-			Transformation.transform(directory, i, response);
+			trans.transform(i, response);
 			logger.info("Page " + i + " complete");
 		}
 	}

@@ -11,14 +11,13 @@ import org.apache.logging.log4j.*;
 public class Transformation {
 	private static final Logger logger = LogManager.getLogger(Transformation.class);
 	private static TransformerFactory factory = TransformerFactory.newInstance();
-	private static Templates templates;
+	private Templates templates;
+	private String directory;
 	
-	public static void newDir(String directory) {
-		new File(directory).mkdir();
-	}
-	
-	public static void setTemplates(InputStream xslt) {
+	public Transformation(InputStream xslt, String in_directory) {
 		Source xsltSource = new StreamSource(xslt);
+		directory = in_directory;
+		new File(directory).mkdir();
 		try {
 			templates = factory.newTemplates(xsltSource);
 		} catch (TransformerConfigurationException e) {
@@ -27,11 +26,11 @@ public class Transformation {
 		}
 	}
 	
-	public static void transform(String dir, int i, InputStream is) {
+	public void transform(int i, InputStream is) {
 		logger.info("Transforme Page " + i);
 		try {
 			Source text = new StreamSource(is);
-			String filePath = dir + "/" + i;
+			String filePath = directory + "/" + i;
 			templates.newTransformer().transform(text, new StreamResult(new File(filePath)));
 		} catch (Exception e) {
 			logger.error("Error during transformation: ", e);
