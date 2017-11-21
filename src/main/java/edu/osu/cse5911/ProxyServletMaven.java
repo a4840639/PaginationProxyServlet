@@ -226,7 +226,7 @@ public class ProxyServletMaven extends HttpServlet {
 			Concat concat = new Concat(directory);
 			concat.concat(pageStr);
 			try {
-				iterationMT(start, total, doc, concat);
+				iterationMT(start + 1, total, doc, concat);
 			} catch (ParserConfigurationException e) {
 				logger.info("Error creating DOM documents", e);
 				throw new RuntimeException(e);
