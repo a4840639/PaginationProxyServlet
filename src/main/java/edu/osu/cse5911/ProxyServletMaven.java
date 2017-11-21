@@ -2,6 +2,11 @@ package edu.osu.cse5911;
 
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -44,6 +49,11 @@ public class ProxyServletMaven extends HttpServlet {
 	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 	final int MPS = 1000;
+	
+	// Maximum tries for connecting the end point
+	final int maxTries = 10;
+	// Maximum number of threads
+	final int poolSize = 256;
 
 	@Override
 	public void init() throws ServletException {
@@ -91,25 +101,26 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 		logger.info("Starting the session : " + session);
 		Document doc = parse(request.getInputStream());
-		Thread myThread = new ProxyServletThread(doc, session);
+		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
 		myThread.start();
 		response.getOutputStream().write(session.getBytes());
 	}
 
 	private void iterationMT(int start, int total, String session, Document is) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
-		Thread[] myThreads = new Thread[total - start];
+		
+		ExecutorService executor = Executors.newFixedThreadPool(poolSize);
+		List<Callable<Void>> callables = new ArrayList<Callable<Void>>();
+		
 		for (int i = start + 1; i <= total; i++) {
 			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
 			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
 			
-			myThreads[i - start - 1] = new IterationThread(doc, session, i);
-			myThreads[i - start - 1].start();
+			callables.add(Executors.callable(new IterationRunnable(doc, session, i), null));
 		}
-		for (int i = start + 1; i <= total; i++) {
-			myThreads[i - start - 1].join();
-		}
+		executor.invokeAll(callables);
 		logger.info("All pages complete");
+		executor.shutdown();
 	}
 
 	private Document parse(InputStream is) {
@@ -160,7 +171,6 @@ public class ProxyServletMaven extends HttpServlet {
 	private InputStream connect(Document doc) {
 		URLConnection con;
 		InputStream is;
-		int maxTries = 10;
 		int count = 0;
 		while (true) {
 			try {
@@ -192,11 +202,11 @@ public class ProxyServletMaven extends HttpServlet {
 		return value;
 	}
 
-	public class ProxyServletThread extends Thread {
+	public class ProxyServletRunnable implements Runnable {
 		Document doc;
 		String session;
 
-		public ProxyServletThread(Document in_doc, String in_session) {
+		public ProxyServletRunnable(Document in_doc, String in_session) {
 			doc = in_doc;
 			session = in_session;
 		}
@@ -246,12 +256,12 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 	}
 	
-	public class IterationThread extends Thread {
+	public class IterationRunnable implements Runnable {
 		String session;
 		Document doc;
 		int i;
 
-		public IterationThread(Document in_doc, String in_session, int in_i) {
+		public IterationRunnable(Document in_doc, String in_session, int in_i) {
 			doc = in_doc;
 			session = in_session;
 			i = in_i;
