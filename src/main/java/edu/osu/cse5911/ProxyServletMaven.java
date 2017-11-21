@@ -58,7 +58,9 @@ public class ProxyServletMaven extends HttpServlet {
 	// Maximum tries for connecting the end point
 	final int maxTries = 10;
 	// Maximum number of concurrent sessions
-	final int poolSize = 16;
+	final int sessionPoolSize = 16;
+	// Maximum number of concurrent page threads
+	final int pagePoolSize = 1024;
 
 	@Override
 	public void init() throws ServletException {
@@ -90,8 +92,8 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("IAM region : " + iamRegion);
 
 		PushToFirehose.init(s3RegionName, bucketName, firehoseRegion, iamRoleName, iamRegion);
-		executor = Executors.newWorkStealingPool();
-		executorMain = Executors.newFixedThreadPool(poolSize);
+		executor = Executors.newFixedThreadPool(pagePoolSize);
+		executorMain = Executors.newFixedThreadPool(sessionPoolSize);
 
 		logger.info("Initializtion complete");
 	}
