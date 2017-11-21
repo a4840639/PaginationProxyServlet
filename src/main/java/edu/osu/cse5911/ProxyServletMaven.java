@@ -2,7 +2,13 @@ package edu.osu.cse5911;
 
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -37,7 +43,23 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String tempdir;
 	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
+	// msec per sec
 	final int MPS = 1000;
+	
+	final String pageRequest = "paginlation:Request";
+	final String soapEnvelope = "soapenv:Envelope";
+	// Executor for each pagination thread
+	ExecutorService executor;
+	// Executor for the main program
+	ExecutorService executorMain;
+	// Maximum tries for connecting the end point
+	final int maxTries = 10;
+	// Maximum number of concurrent sessions
+	final int sessionPoolSize = 16;
+	// Maximum number of concurrent page threads
+	final int pagePoolSize = 128;
+	// Prefix to the S3 file
+	final String s3Prefix = "merged/";
 
 	@Override
 	public void init() throws ServletException {
@@ -61,6 +83,11 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("Relative path to the XSLT file : " + xslt);
 		logger.info("S3 bucket : " + bucketName);
 		logger.info("S3 region : " + s3RegionName);
+		
+		executor = Executors.newFixedThreadPool(pagePoolSize);
+		executorMain = Executors.newFixedThreadPool(sessionPoolSize);
+		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
+		logger.info("Working directory: " + tempdir);
 
 		logger.info("Initializtion complete");
 	}
@@ -79,25 +106,27 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("Starting the session : " + session);
 		logger.info("Multi-threaded access");
 		Document doc = parse(request.getInputStream());
-		Thread myThread = new ProxyServletThread(doc, session);
-		myThread.start();
+		executorMain.submit(new ProxyServletRunnable(doc, session));
 		response.getOutputStream().write(session.getBytes());
 
 	}
+	
+	private Document createDocumentFromNode(Node node) throws ParserConfigurationException {
+		Document newDocument = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+		newDocument.appendChild(newDocument.importNode(node, true));
+		return newDocument;
+	}
 
-	void iterationMT(int start, int total, Document is, String directory, TransformationConcat trans) throws ParserConfigurationException, InterruptedException {
+	void iterationMT(int start, int total, Document is, Concat concat) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
-		Thread[] myThreads = new Thread[total - start];
-		for (int i = start + 1; i <= total; i++) {
-			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
-			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
-			
-			myThreads[i - start - 1] = new IterationThread(doc, i, directory, trans);
-			myThreads[i - start - 1].start();
+		logger.info("Requesting pages...");
+		List<Callable<Void>> callables = new ArrayList<Callable<Void>>();
+		for (int i = start; i <= total; i++) {
+			Document doc = createDocumentFromNode(is.getDocumentElement());
+			callables.add(Executors.callable(new IterationRunnable(doc, i, concat), null));
 		}
-		for (int i = start + 1; i <= total; i++) {
-			myThreads[i - start - 1].join();
-		}
+		executor.invokeAll(callables);
+		logger.info("All pages complete");
 		logger.info("All pages complete");
 	}
 
@@ -172,11 +201,11 @@ public class ProxyServletMaven extends HttpServlet {
 		return is;
 	}
 
-	public class ProxyServletThread extends Thread {
+	public class ProxyServletRunnable implements Runnable {
 		Document doc;
 		String session;
 
-		public ProxyServletThread(Document in_doc, String in_session) {
+		public ProxyServletRunnable(Document in_doc, String in_session) {
 			doc = in_doc;
 			session = in_session;
 		}
@@ -192,10 +221,12 @@ public class ProxyServletMaven extends HttpServlet {
 			int total = Integer.parseInt(getNode(totalPages, remoteDoc).getTextContent());
 
 			remoteResponse = transformDocToInputStream(remoteDoc);
-			TransformationConcat trans = new TransformationConcat(directory, getServletContext().getResourceAsStream(xslt));
-			trans.transform(start, remoteResponse);
+			Transformation.setTemplates(getServletContext().getResourceAsStream(xslt));
+			String pageStr = Transformation.transformInMemory(remoteResponse);
+			Concat concat = new Concat(directory);
+			concat.concat(pageStr);
 			try {
-				iterationMT(start, total, doc, directory, trans);
+				iterationMT(start, total, doc, concat);
 			} catch (ParserConfigurationException e) {
 				logger.info("Error creating DOM documents", e);
 				throw new RuntimeException(e);
@@ -203,33 +234,33 @@ public class ProxyServletMaven extends HttpServlet {
 				logger.info("Error joining threads", e);
 				throw new RuntimeException(e);
 			}
+			concat.close();
 			PushToS3.push(directory + "/mergedFile", bucketName, "merged/" + session, s3RegionName);
 			logger.info("Deleting the working directory");
-			TransformationConcat.deleteDir(new File(directory));
+			Transformation.deleteDir(new File(directory));
 			long totalTime = System.currentTimeMillis() - startTime;
 			logger.info("Session " + session + " complete");
 			logger.info("Time taken: " + totalTime / MPS + "." + totalTime % MPS + "s");
 		}
 	}
 
-	public class IterationThread extends Thread {
+	public class IterationRunnable implements Runnable {
 		Document doc;
 		int i;
-		String directory;
-		TransformationConcat trans;
+		Concat concat;
 
-		public IterationThread(Document in_doc, int in_i, String in_directory, TransformationConcat in_trans) {
+		public IterationRunnable(Document in_doc, int in_i, Concat in_concat) {
 			doc = in_doc;
 			i = in_i;
-			directory = in_directory;
-			trans = in_trans;
+			concat = in_concat;
 		}
 
 		public void run() {
 			logger.info("Requesting Page " + i);
 			getNode(page, doc).setTextContent(Integer.toString(i));
 			InputStream response = connect(doc);
-			trans.transform(i, response);
+			String pageStr = Transformation.transformInMemory(response);
+			concat.concat(pageStr);
 			logger.info("Page " + i + " complete");
 		}
 	}
