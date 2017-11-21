@@ -59,15 +59,18 @@ public class ProxyServletMaven extends HttpServlet {
 	// Maximum tries for connecting the end point
 	final int maxTries = 10;
 	// Maximum number of concurrent sessions
-	final int poolSize = 16;
+	final int sessionPoolSize = 16;
+	// Maximum number of concurrent page threads
+	final int pagePoolSize = 1024;
 	// Prefix to the S3 file
 	final String s3Prefix = "merged/";
 
 	@Override
 	public void init() throws ServletException {
-		executor = Executors.newWorkStealingPool();
-		executorMain = Executors.newFixedThreadPool(poolSize);
+		executor = Executors.newFixedThreadPool(pagePoolSize);
+		executorMain = Executors.newFixedThreadPool(sessionPoolSize);
 		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
+		logger.info("Working directory: " + tempdir);
 		logger.info("Initializtion complete");
 	}
 
@@ -86,8 +89,6 @@ public class ProxyServletMaven extends HttpServlet {
 		Document doc = parse(request.getInputStream());
 
 		executorMain.submit(new ProxyServletRunnable(doc, session));
-//		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
-//		myThread.start();
 		response.getOutputStream().write(session.getBytes());
 
 	}
