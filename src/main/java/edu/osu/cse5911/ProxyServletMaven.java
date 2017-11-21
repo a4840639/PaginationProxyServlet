@@ -53,6 +53,7 @@ public class ProxyServletMaven extends HttpServlet {
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 	private static String tempdir;
 	
+	// msec per sec
 	final int MPS = 1000;
 	final String pageRequest = "paginlation:Request";
 	final String soapEnvelope = "soapenv:Envelope";
@@ -61,7 +62,7 @@ public class ProxyServletMaven extends HttpServlet {
 	// Maximum number of concurrent sessions
 	final int sessionPoolSize = 16;
 	// Maximum number of concurrent page threads
-	final int pagePoolSize = 1024;
+	final int pagePoolSize = 128;
 	// Prefix to the S3 file
 	final String s3Prefix = "merged/";
 
