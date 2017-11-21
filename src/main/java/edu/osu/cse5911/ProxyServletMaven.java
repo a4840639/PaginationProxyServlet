@@ -111,9 +111,13 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("Starting the session : " + session);
 		Document doc = parse(request.getInputStream());
 		executorMain.submit(new ProxyServletRunnable(doc, session));
-//		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
-//		myThread.start();
 		response.getOutputStream().write(session.getBytes());
+	}
+	
+	private Document createDocumentFromNode(Node node) throws ParserConfigurationException {
+		Document newDocument = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+		newDocument.appendChild(newDocument.importNode(node, true));
+		return newDocument;
 	}
 
 	private void iterationMT(int start, int total, String session, Document is) throws ParserConfigurationException, InterruptedException {
@@ -122,8 +126,7 @@ public class ProxyServletMaven extends HttpServlet {
 		List<Callable<Void>> callables = new ArrayList<Callable<Void>>();
 		
 		for (int i = start + 1; i <= total; i++) {
-			Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
-			doc.appendChild(doc.importNode(is.getDocumentElement(), true));
+			Document doc = createDocumentFromNode(is.getDocumentElement());
 			
 			callables.add(Executors.callable(new IterationRunnable(doc, session, i), null));
 		}
