@@ -46,14 +46,19 @@ public class ProxyServletMaven extends HttpServlet {
 	private static String iamRoleName;
 	private static String iamRegion;
 
+	// Executor for each pagination thread
+	ExecutorService executor;
+	// Executor for the main program
+	ExecutorService executorMain;
 	private static URL url;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
+	// msec per sec
 	final int MPS = 1000;
 	
 	// Maximum tries for connecting the end point
 	final int maxTries = 10;
-	// Maximum number of threads
-	final int poolSize = 256;
+	// Maximum number of concurrent sessions
+	final int poolSize = 16;
 
 	@Override
 	public void init() throws ServletException {
@@ -85,6 +90,8 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("IAM region : " + iamRegion);
 
 		PushToFirehose.init(s3RegionName, bucketName, firehoseRegion, iamRoleName, iamRegion);
+		executor = Executors.newWorkStealingPool();
+		executorMain = Executors.newFixedThreadPool(poolSize);
 
 		logger.info("Initializtion complete");
 	}
@@ -101,15 +108,15 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 		logger.info("Starting the session : " + session);
 		Document doc = parse(request.getInputStream());
-		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
-		myThread.start();
+		executorMain.submit(new ProxyServletRunnable(doc, session));
+//		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
+//		myThread.start();
 		response.getOutputStream().write(session.getBytes());
 	}
 
 	private void iterationMT(int start, int total, String session, Document is) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
 		
-		ExecutorService executor = Executors.newFixedThreadPool(poolSize);
 		List<Callable<Void>> callables = new ArrayList<Callable<Void>>();
 		
 		for (int i = start + 1; i <= total; i++) {
@@ -120,7 +127,6 @@ public class ProxyServletMaven extends HttpServlet {
 		}
 		executor.invokeAll(callables);
 		logger.info("All pages complete");
-		executor.shutdown();
 	}
 
 	private Document parse(InputStream is) {
