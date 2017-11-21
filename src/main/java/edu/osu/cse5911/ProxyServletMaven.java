@@ -43,22 +43,30 @@ public class ProxyServletMaven extends HttpServlet {
 	private String s3RegionName;
 	private String awsKey;
 	private String awsSecret;
+	
 	private URL url;
+	// Executor for each pagination thread
+	ExecutorService executor;
+	// Executor for the main program
+	ExecutorService executorMain;
 	private Transformation trans;
 	private static Logger logger = LogManager.getLogger(ProxyServletMaven.class);
 	private static String tempdir;
+	
 	final int MPS = 1000;
 	final String pageRequest = "paginlation:Request";
 	final String soapEnvelope = "soapenv:Envelope";
 	// Maximum tries for connecting the end point
 	final int maxTries = 10;
-	// Maximum number of threads
-	final int poolSize = 256;
+	// Maximum number of concurrent sessions
+	final int poolSize = 16;
 	// Prefix to the S3 file
 	final String s3Prefix = "merged/";
 
 	@Override
 	public void init() throws ServletException {
+		executor = Executors.newWorkStealingPool();
+		executorMain = Executors.newFixedThreadPool(poolSize);
 		tempdir = ((File) getServletContext().getAttribute(ServletContext.TEMPDIR)).getPath();
 		logger.info("Initializtion complete");
 	}
@@ -77,15 +85,15 @@ public class ProxyServletMaven extends HttpServlet {
 		logger.info("Starting the session : " + session);
 		Document doc = parse(request.getInputStream());
 
-		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
-		myThread.start();
+		executorMain.submit(new ProxyServletRunnable(doc, session));
+//		Thread myThread = new Thread(new ProxyServletRunnable(doc, session));
+//		myThread.start();
 		response.getOutputStream().write(session.getBytes());
 
 	}
 
 	void iterationMT(int start, int total, Document is) throws ParserConfigurationException, InterruptedException {
 		logger.info("Requesting pages...");
-		ExecutorService executor = Executors.newFixedThreadPool(poolSize);
 		List<Callable<Void>> callables = new ArrayList<Callable<Void>>();
 		for (int i = start; i <= total; i++) {
 			Document doc = createDocumentFromNode(is.getDocumentElement());
